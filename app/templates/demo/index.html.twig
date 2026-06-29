@@ -1,0 +1,38 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}TFS app — Tauri FrankenPHP Symfony application{% endblock %}
+
+{% block body %}
+  <main class="shell" data-controller="demo" data-demo-topic-value="{{ mercureTopic }}">
+    <section class="hero">
+      <p class="eyebrow">Local desktop architecture base</p>
+      <h1>Tauri FrankenPHP Symfony application</h1>
+      <button class="dispatch-button" type="button" data-action="demo#dispatch" data-demo-target="button">
+        Dispatch async job
+      </button>
+    </section>
+
+    <section class="counters" aria-label="Response counters">
+      <article class="counter">
+        <span class="counter__label">HTTP responses</span>
+        <strong data-demo-target="httpCount">0</strong>
+      </article>
+      <article class="counter">
+        <span class="counter__label">SSE responses</span>
+        <strong data-demo-target="sseCount">0</strong>
+      </article>
+      <article class="counter">
+        <span class="counter__label">Persisted jobs (DB)</span>
+        <strong data-demo-target="jobCount">{{ jobCount }}</strong>
+      </article>
+    </section>
+
+    <section class="log-panel" aria-label="Event log">
+      <div class="log-panel__header">
+        <h2>Logs</h2>
+        <span data-demo-target="status">Connecting to Mercure...</span>
+      </div>
+      <ol class="logs" data-demo-target="logs"></ol>
+    </section>
+  </main>
+{% endblock %}

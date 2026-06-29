@@ -1,0 +1,25 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "{{ product_name }}",
+  "version": "0.1.0",
+  "identifier": "{{ identifier }}",
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "devUrl": "http://127.0.0.1:8080",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": []
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["deb"],
+    "resources": [
+      "resources/app",
+      "resources/Caddyfile.desktop",
+      "resources/frankenphp"
+    ]
+  }
+}

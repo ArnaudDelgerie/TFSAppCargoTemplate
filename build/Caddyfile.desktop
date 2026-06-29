@@ -1,0 +1,26 @@
+{
+    auto_https off
+    admin off
+}
+
+http://127.0.0.1:{$APP_PORT} {
+    root * {$APP_PUBLIC_DIR}
+
+    header {
+        Cache-Control "no-store"
+        Pragma "no-cache"
+        Expires "0"
+    }
+
+    mercure {
+        publisher_jwt {$MERCURE_JWT_SECRET}
+        subscriber_jwt {$MERCURE_JWT_SECRET}
+        anonymous
+        transport local
+        cors_origins {$APP_ORIGIN} tauri://localhost
+    }
+
+    php_server {
+        worker {$APP_PUBLIC_DIR}/index.php
+    }
+}

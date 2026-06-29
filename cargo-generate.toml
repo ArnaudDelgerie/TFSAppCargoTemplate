@@ -1,0 +1,26 @@
+# `cargo generate` template: lays down the TFS desktop wrapper (Tauri + FrankenPHP)
+# around a Symfony app. See Plan/SCAFFOLDER.md.
+[template]
+cargo_generate_version = ">=0.18"
+
+# Whitelist: ONLY these files go through the Liquid engine. Everything else is copied
+# verbatim — required so the Twig syntax ({{ }} / {% %}) of the Symfony templates,
+# which is identical to Liquid's, is not mangled.
+include = [
+  "desktop/src-tauri/tauri.conf.json",
+  "desktop/src-tauri/Cargo.toml",
+  "app/composer.json",
+  ".scaffold.toml",
+]
+
+[placeholders]
+product_name = { type = "string", prompt = "Display name (productName, e.g. TFSApp)", regex = "^[A-Za-z0-9]+$" }
+identifier   = { type = "string", prompt = "Reverse-domain identifier (e.g. dev.local.my-app)", regex = "^[a-z0-9.\\-]+$" }
+with_app     = { type = "bool",   prompt = "Include the base Symfony app (demo)?", default = true }
+
+# with_app == false (existing project): the app/ folder is not emitted.
+# The dev drops their own contract-compliant app in (README, "Projet existant").
+# NB: the glob must be "app" (the folder), not "app/**" — the latter does not match
+# under cargo-generate and would leave app/ in place. Verified by 2-mode smoke test.
+[conditional.'with_app == false']
+ignore = ["app"]

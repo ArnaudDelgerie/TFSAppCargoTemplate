@@ -1,0 +1,16 @@
+/app/vendor/
+/app/node_modules/
+/app/public/build/
+/app/var/cache/
+/app/var/log/
+/app/var/data/*.db
+/app/var/data/*.db-*
+/desktop/node_modules/
+/desktop/src-tauri/target/
+/desktop/src-tauri/gen/
+/desktop/src-tauri/resources/app/
+/desktop/src-tauri/resources/Caddyfile.desktop
+/desktop/src-tauri/resources/frankenphp
+.DS_Store
+INITIAL_PROMPT.md
+/Plan/

@@ -1,0 +1,65 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/frankenphp/Dockerfile
+    command: frankenphp run --config /etc/caddy/Caddyfile
+    environment:
+      APP_ENV: dev
+      APP_DEBUG: "1"
+      # Fixed, throwaway dev secret. In a packaged build the Tauri launcher
+      # generates a unique APP_SECRET per installation and persists it 0600.
+      APP_SECRET: poc-dev-app-secret-0123456789abcdef
+      # Worker mode in dev: reboot the kernel on each request so code/state stay fresh.
+      # Prod keeps the worker hot (no reset) for performance.
+      FRANKENPHP_RESET_KERNEL: "1"
+      DATABASE_URL: sqlite:////app/var/data/app.db
+      MESSENGER_TRANSPORT_DSN: doctrine://default?queue_name=async
+      MERCURE_URL: http://127.0.0.1:8080/.well-known/mercure
+      MERCURE_PUBLIC_URL: http://127.0.0.1:${APP_PORT:-8080}/.well-known/mercure
+      MERCURE_JWT_SECRET: poc-dev-mercure-secret-0123456789abcdef
+      APP_ORIGIN: http://127.0.0.1:${APP_PORT:-8080}
+    ports:
+      - "127.0.0.1:${APP_PORT:-8080}:8080"
+    volumes:
+      - ./app:/app
+      - ./docker/frankenphp/Caddyfile:/etc/caddy/Caddyfile:ro
+    healthcheck:
+      test: ["CMD-SHELL", "php -r 'exit(@file_get_contents(\"http://127.0.0.1:8080/healthz\") === false ? 1 : 0);'"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/frankenphp/Dockerfile
+    command: frankenphp php-cli bin/console messenger:consume async -vvv
+    depends_on:
+      - app
+    environment:
+      APP_ENV: dev
+      APP_DEBUG: "1"
+      # Must match the app service: both processes share APP_SECRET.
+      APP_SECRET: poc-dev-app-secret-0123456789abcdef
+      DATABASE_URL: sqlite:////app/var/data/app.db
+      MESSENGER_TRANSPORT_DSN: doctrine://default?queue_name=async
+      MERCURE_URL: http://app:8080/.well-known/mercure
+      MERCURE_PUBLIC_URL: http://127.0.0.1:${APP_PORT:-8080}/.well-known/mercure
+      MERCURE_JWT_SECRET: poc-dev-mercure-secret-0123456789abcdef
+    volumes:
+      - ./app:/app
+    healthcheck:
+      disable: true
+
+  node:
+    build:
+      context: .
+      dockerfile: docker/node/Dockerfile
+    command: npm run watch
+    working_dir: /app
+    volumes:
+      - ./app:/app
+    profiles:
+      - assets
