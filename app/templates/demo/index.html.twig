@@ -1,36 +1,119 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}TFS app — Tauri FrankenPHP Symfony application{% endblock %}
+{% block title %}{{ 'hero.title'|trans }}{% endblock %}
 
 {% block body %}
-  <main class="shell" data-controller="demo" data-demo-topic-value="{{ mercureTopic }}">
+  {% set demoI18n = {
+    dispatchingAsync: 'log.dispatching_async'|trans,
+    dispatchingSync: 'log.dispatching_sync'|trans,
+    httpAccepted: 'log.http_accepted'|trans,
+    httpDone: 'log.http_done'|trans,
+    dispatchFailed: 'log.dispatch_failed'|trans,
+    asyncDisabled: 'log.async_disabled'|trans,
+    sseOpening: 'log.sse_opening'|trans,
+    sseConnected: 'log.sse_connected'|trans,
+    sseIssue: 'log.sse_issue'|trans,
+    sseDone: 'log.sse_done'|trans,
+    statusConnected: 'status.connected'|trans,
+    statusReconnecting: 'status.reconnecting'|trans,
+    statusSync: 'status.sync'|trans,
+    validationError: 'error.username_required'|trans
+  } %}
+
+  <main class="shell"
+        data-demo
+        data-demo-topic="{{ mercureTopic }}"
+        data-demo-async="{{ asyncEnabled ? 'true' : 'false' }}"
+        data-demo-i18n="{{ demoI18n|json_encode|e('html_attr') }}">
+
+    <nav class="lang" aria-label="Language">
+      <a href="{{ path('demo_index', {_locale: 'en'}) }}"
+         class="lang__link{{ app.request.locale == 'en' ? ' is-active' : '' }}">EN</a>
+      <a href="{{ path('demo_index', {_locale: 'fr'}) }}"
+         class="lang__link{{ app.request.locale == 'fr' ? ' is-active' : '' }}">FR</a>
+    </nav>
+
     <section class="hero">
-      <p class="eyebrow">Local desktop architecture base</p>
-      <h1>Tauri FrankenPHP Symfony application</h1>
-      <button class="dispatch-button" type="button" data-action="demo#dispatch" data-demo-target="button">
-        Dispatch async job
-      </button>
+      <p class="eyebrow">{{ 'hero.eyebrow'|trans }}</p>
+      <h1>Tauri · FrankenPHP · Symfony</h1>
+      <p class="lede">{{ 'hero.lede'|trans }}</p>
+      {% if asyncEnabled %}
+        <p class="flavor flavor--async">
+          <span class="flavor__dot"></span>{{ 'build.async'|trans }}
+        </p>
+      {% else %}
+        <p class="flavor flavor--sync">
+          <span class="flavor__dot"></span>{{ 'build.sync'|trans }}
+        </p>
+      {% endif %}
     </section>
 
-    <section class="counters" aria-label="Response counters">
-      <article class="counter">
-        <span class="counter__label">HTTP responses</span>
-        <strong data-demo-target="httpCount">0</strong>
+    <section class="try" aria-label="{{ 'hero.title'|trans }}">
+      <form class="hello-form" data-demo-target="form">
+        <label class="hello-form__label" for="username">{{ 'form.username_label'|trans }}</label>
+        <div class="hello-form__row">
+          <input class="hello-form__input" id="username" name="username" type="text" maxlength="64"
+                 autocomplete="off" placeholder="{{ 'form.username_placeholder'|trans }}"
+                 data-demo-target="username">
+          <button class="dispatch-button" type="submit" data-demo-target="button">
+            {{ (asyncEnabled ? 'try.button_async' : 'try.button_sync')|trans }}
+          </button>
+        </div>
+        <p class="hello-form__error" data-demo-target="error" hidden></p>
+      </form>
+
+      <output class="greeting" data-demo-target="greeting" aria-live="polite"></output>
+
+      <div class="counters">
+        <article class="counter">
+          <span class="counter__label">{{ 'counter.http_label'|trans }}</span>
+          <strong data-demo-target="httpCount">0</strong>
+          <span class="counter__hint">{{ 'counter.http_hint'|trans }}</span>
+        </article>
+
+        <article class="counter{{ asyncEnabled ? '' : ' counter--off' }}">
+          <span class="counter__label">{{ 'counter.sse_label'|trans }}</span>
+          <strong data-demo-target="sseCount">{{ asyncEnabled ? '0' : '—' }}</strong>
+          <span class="counter__hint">
+            {{ (asyncEnabled ? 'counter.sse_hint_async' : 'counter.sse_hint_sync')|trans }}
+          </span>
+        </article>
+
+        <article class="counter">
+          <span class="counter__label">{{ 'counter.db_label'|trans }}</span>
+          <strong data-demo-target="jobCount">{{ jobCount }}</strong>
+          <span class="counter__hint">{{ 'counter.db_hint'|trans }}</span>
+        </article>
+      </div>
+    </section>
+
+    <section class="cards" aria-label="{{ 'logs.title'|trans }}">
+      <article class="card">
+        <h3>{{ 'card.async_title'|trans }}</h3>
+        <p>{{ (asyncEnabled ? 'card.async_body_async' : 'card.async_body_sync')|trans }}</p>
       </article>
-      <article class="counter">
-        <span class="counter__label">SSE responses</span>
-        <strong data-demo-target="sseCount">0</strong>
+      <article class="card">
+        <h3>{{ 'card.sse_title'|trans }}</h3>
+        <p>{{ 'card.sse_body'|trans }}</p>
       </article>
-      <article class="counter">
-        <span class="counter__label">Persisted jobs (DB)</span>
-        <strong data-demo-target="jobCount">{{ jobCount }}</strong>
+      <article class="card">
+        <h3>{{ 'card.data_title'|trans }}</h3>
+        <p>{{ 'card.data_body'|trans }}</p>
       </article>
     </section>
 
-    <section class="log-panel" aria-label="Event log">
+    <section class="card card--roadmap" aria-label="{{ 'roadmap.title'|trans }}">
+      <p class="card__tag">{{ 'roadmap.tag'|trans }}</p>
+      <h3>{{ 'roadmap.title'|trans }}</h3>
+      <p>{{ 'roadmap.body'|trans }}</p>
+    </section>
+
+    <section class="log-panel" aria-label="{{ 'logs.title'|trans }}">
       <div class="log-panel__header">
-        <h2>Logs</h2>
-        <span data-demo-target="status">Connecting to Mercure...</span>
+        <h2>{{ 'logs.title'|trans }}</h2>
+        <span data-demo-target="status">
+          {{ (asyncEnabled ? 'status.connecting' : 'status.sync')|trans }}
+        </span>
       </div>
       <ol class="logs" data-demo-target="logs"></ol>
     </section>

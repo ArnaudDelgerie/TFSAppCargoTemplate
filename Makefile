@@ -19,7 +19,7 @@ clean:
 	$(COMPOSE) run --rm --user 0:0 app rm -rf var node_modules public/build
 
 dev:
-	$(COMPOSE) up app worker
+	$(COMPOSE) up
 
 assets-install:
 	$(NODE_RUN) npm install
@@ -42,7 +42,7 @@ symfony-console:
 	$(APP_RUN) frankenphp php-cli bin/console $(CMD)
 
 tauri-dev:
-	$(COMPOSE) up -d app worker
+	$(COMPOSE) up -d
 	cd desktop && cargo tauri dev
 
 build-app:

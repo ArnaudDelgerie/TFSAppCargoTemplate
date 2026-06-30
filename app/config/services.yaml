@@ -4,6 +4,9 @@ services:
   _defaults:
     autowire: true
     autoconfigure: true
+    bind:
+      # Consumed by LocaleSubscriber to fall back when no ?_locale is given.
+      string $defaultLocale: '%kernel.default_locale%'
 
   App\:
     resource: '../src/'

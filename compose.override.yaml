@@ -1,0 +1,34 @@
+# Async additions, merged automatically by `docker compose` on top of
+# compose.yaml. The scaffolder removes this file for sync builds (with_async=false,
+# see cargo-generate.toml), so only async projects run a Messenger worker in dev.
+services:
+  app:
+    environment:
+      # Override the base sync transport: route demo messages to a Doctrine
+      # queue drained by the worker service below.
+      MESSENGER_TRANSPORT_DSN: doctrine://default?queue_name=async
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/frankenphp/Dockerfile
+    command: frankenphp php-cli bin/console messenger:consume async -vvv
+    depends_on:
+      - app
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      HOME: /tmp
+      COMPOSER_HOME: /tmp/composer
+      APP_ENV: dev
+      APP_DEBUG: "1"
+      # Must match the app service: both processes share APP_SECRET.
+      APP_SECRET: poc-dev-app-secret-0123456789abcdef
+      DATABASE_URL: sqlite:////app/var/data/app.db
+      MESSENGER_TRANSPORT_DSN: doctrine://default?queue_name=async
+      MERCURE_URL: http://app:8080/.well-known/mercure
+      MERCURE_PUBLIC_URL: http://127.0.0.1:${APP_PORT:-8080}/.well-known/mercure
+      MERCURE_JWT_SECRET: poc-dev-mercure-secret-0123456789abcdef
+    volumes:
+      - ./app:/app
+    healthcheck:
+      disable: true

@@ -14,7 +14,7 @@ http://:8080 {
         cors_origins {$APP_ORIGIN} tauri://localhost
     }
 
-    php_server {
-        worker /app/public/index.php
-    }
+    # Classic mode by default (matches the desktop build, see build/Caddyfile.desktop).
+    # Opt into worker mode with:  php_server { worker /app/public/index.php }
+    php_server
 }

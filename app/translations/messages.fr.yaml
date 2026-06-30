@@ -1,0 +1,78 @@
+hero:
+  eyebrow: 'Base d''architecture desktop locale'
+  title: 'Distribuez votre app Symfony comme une app desktop'
+  lede: >-
+    Un vrai backend Symfony — vos contrôleurs, Doctrine, Messenger — servi en
+    loopback par un FrankenPHP embarqué, qui rend du Twig côté serveur dans une
+    fenêtre Tauri. Aucune réécriture du backend, vos utilisateurs n''installent
+    rien, et le frontend reste le vôtre. Quand votre stack est PHP plutôt que
+    Node, c''est une alternative crédible à tout emballer dans Electron.
+
+build:
+  async: 'Ce build a l''async activé : un worker en arrière-plan traite les jobs et renvoie le résultat via SSE.'
+  sync: 'Ce build est synchrone uniquement : pas de worker. Les jobs s''exécutent dans la requête et le SSE est désactivé — la démo ci-dessous fonctionne quand même.'
+
+try:
+  button_async: 'Salue-moi (async)'
+  button_sync: 'Salue-moi (sync)'
+
+form:
+  username_label: 'Ton prénom'
+  username_placeholder: 'ex. Ada'
+
+error:
+  username_required: 'Saisis un nom (1 à 64 caractères).'
+
+# Phrases tirées au hasard par le worker (cf. DemoPingMessage::GREETINGS).
+# %username% est rempli côté serveur, dans la locale du demandeur.
+greeting:
+  welcome: 'Bienvenue à bord, %username% ! Ton job a fait l''aller-retour complet.'
+  try_async: '%username%, désactive l''async et regarde le compteur SSE rester muet.'
+  explore: 'Enchanté %username% — toute la stack Symfony est là, sous la main.'
+  persisted: '%username%, ton job est maintenant une ligne SQLite. Elle survit à un redémarrage.'
+  native: 'Salut %username% ! Un pont natif (keyring, notifications) arrive bientôt.'
+
+counter:
+  http_label: 'Réponses HTTP'
+  http_hint: 'Réponse immédiate du contrôleur.'
+  sse_label: 'Réponses SSE'
+  sse_hint_async: 'Poussée plus tard, quand le worker termine le job.'
+  sse_hint_sync: 'Désactivé sur ce build — rien ne s''exécute plus tard.'
+  db_label: 'Jobs persistés (BDD)'
+  db_hint: 'Lignes écrites dans le fichier SQLite partagé.'
+
+card:
+  async_title: 'L''async est optionnel'
+  async_body_async: 'Des contrôleurs synchrones classiques conviennent très bien. Messenger ne se justifie que pour les tâches longues ou en arrière-plan. Ce build embarque le worker, donc le bouton dispatche un vrai job async.'
+  async_body_sync: 'Des contrôleurs synchrones classiques conviennent très bien. Messenger ne se justifie que pour les tâches longues ou en arrière-plan. Ce build se passe du worker — et la démo ci-dessus prouve que l''app fonctionne quand même.'
+  sse_title: 'Quand ai-je besoin du SSE ?'
+  sse_body: 'Uniquement pour notifier l''utilisateur quand une tâche async se termine plus tard, sans recharger. Une réponse synchrone porte déjà son résultat : aucun hub Mercure nécessaire.'
+  data_title: 'Où vont mes données ?'
+  data_body: 'Un seul fichier SQLite dans l''app-data, partagé par le serveur HTTP et — quand il est activé — le worker. Le même handler passe la ligne à « done », en inline ou dans le worker, et elle survit aux redémarrages.'
+
+roadmap:
+  tag: 'À venir'
+  title: 'Pont natif'
+  body: 'Secrets stockés dans le keyring, notifications OS et dialogues natifs, exposés à Symfony et accessibles depuis votre frontend. Un chantier séparé, posé sur cette même base.'
+
+logs:
+  title: 'Journaux'
+
+status:
+  connecting: 'Connexion à Mercure…'
+  connected: 'Mercure connecté'
+  reconnecting: 'Reconnexion à Mercure…'
+  sync: 'Build synchrone — pas de flux SSE'
+
+# Lignes de log émises côté JS. Les jetons %xxx% sont remplis côté client.
+log:
+  async_disabled: 'Async désactivé sur ce build ; les jobs s''exécutent en inline dans la requête.'
+  dispatching_async: 'HTTP dispatch du job async…'
+  dispatching_sync: 'HTTP exécution de la tâche synchrone…'
+  http_accepted: 'HTTP accepté %jobId% (en attente — le worker le terminera)'
+  http_done: 'HTTP terminé %jobId% en synchrone (done)'
+  sse_opening: 'SSE ouverture %url%'
+  sse_connected: 'SSE connecté'
+  sse_issue: 'SSE problème de connexion, readyState=%state%'
+  sse_done: 'SSE terminé %jobId% event=%event%'
+  dispatch_failed: 'Échec du dispatch : %error%'

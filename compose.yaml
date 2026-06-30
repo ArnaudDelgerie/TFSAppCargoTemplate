@@ -1,3 +1,8 @@
+# Base dev stack: the Symfony app served by FrankenPHP, synchronous by default.
+# Async builds also get compose.override.yaml (Doctrine transport + a Messenger
+# worker), which `docker compose` merges automatically when the file is present.
+# The scaffolder drops that override for sync builds (cargo-generate.toml), so a
+# sync project's dev stack has no worker — matching its packaged build.
 services:
   app:
     build:
@@ -18,11 +23,11 @@ services:
       # Fixed, throwaway dev secret. In a packaged build the Tauri launcher
       # generates a unique APP_SECRET per installation and persists it 0600.
       APP_SECRET: poc-dev-app-secret-0123456789abcdef
-      # Worker mode in dev: reboot the kernel on each request so code/state stay fresh.
-      # Prod keeps the worker hot (no reset) for performance.
-      FRANKENPHP_RESET_KERNEL: "1"
       DATABASE_URL: sqlite:////app/var/data/app.db
-      MESSENGER_TRANSPORT_DSN: doctrine://default?queue_name=async
+      # Synchronous transport: dispatched messages run inline in the request, so
+      # no worker is needed. compose.override.yaml swaps this to a Doctrine
+      # transport for async builds.
+      MESSENGER_TRANSPORT_DSN: sync://
       MERCURE_URL: http://127.0.0.1:8080/.well-known/mercure
       MERCURE_PUBLIC_URL: http://127.0.0.1:${APP_PORT:-8080}/.well-known/mercure
       MERCURE_JWT_SECRET: poc-dev-mercure-secret-0123456789abcdef
@@ -38,31 +43,6 @@ services:
       timeout: 3s
       retries: 6
       start_period: 10s
-
-  worker:
-    build:
-      context: .
-      dockerfile: docker/frankenphp/Dockerfile
-    command: frankenphp php-cli bin/console messenger:consume async -vvv
-    depends_on:
-      - app
-    user: "${UID:-1000}:${GID:-1000}"
-    environment:
-      HOME: /tmp
-      COMPOSER_HOME: /tmp/composer
-      APP_ENV: dev
-      APP_DEBUG: "1"
-      # Must match the app service: both processes share APP_SECRET.
-      APP_SECRET: poc-dev-app-secret-0123456789abcdef
-      DATABASE_URL: sqlite:////app/var/data/app.db
-      MESSENGER_TRANSPORT_DSN: doctrine://default?queue_name=async
-      MERCURE_URL: http://app:8080/.well-known/mercure
-      MERCURE_PUBLIC_URL: http://127.0.0.1:${APP_PORT:-8080}/.well-known/mercure
-      MERCURE_JWT_SECRET: poc-dev-mercure-secret-0123456789abcdef
-    volumes:
-      - ./app:/app
-    healthcheck:
-      disable: true
 
   node:
     build:

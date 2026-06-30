@@ -1,0 +1,78 @@
+hero:
+  eyebrow: 'Local desktop architecture base'
+  title: 'Ship your Symfony app as a desktop app'
+  lede: >-
+    A real Symfony backend — your controllers, Doctrine, Messenger — served on
+    loopback by an embedded FrankenPHP, rendering server-side Twig in a Tauri
+    window. No backend rewrite, your users install nothing, and the frontend
+    stays yours. When your stack is PHP rather than Node, it is a credible
+    alternative to wrapping everything in Electron.
+
+build:
+  async: 'This build is async-enabled: a background worker handles jobs and pushes the result back over SSE.'
+  sync: 'This build is synchronous only: no background worker. Jobs run inside the request and SSE is off — the demo below still works.'
+
+try:
+  button_async: 'Greet me (async)'
+  button_sync: 'Greet me (sync)'
+
+form:
+  username_label: 'Your name'
+  username_placeholder: 'e.g. Ada'
+
+error:
+  username_required: 'Please enter a name (1–64 characters).'
+
+# Random greetings picked by the worker (see DemoPingMessage::GREETINGS).
+# %username% is filled in server-side, in the requester's locale.
+greeting:
+  welcome: 'Welcome aboard, %username%! Your job ran end to end.'
+  try_async: '%username%, toggle async off and watch the SSE counter stay quiet.'
+  explore: 'Nice to meet you, %username% — the whole Symfony stack is right here.'
+  persisted: '%username%, your job is now a row in SQLite. It survives a restart.'
+  native: 'Hey %username%! A native OS bridge (keyring, notifications) is coming next.'
+
+counter:
+  http_label: 'HTTP responses'
+  http_hint: 'Immediate reply from the controller.'
+  sse_label: 'SSE responses'
+  sse_hint_async: 'Pushed later, when the worker finishes the job.'
+  sse_hint_sync: 'Disabled on this build — nothing runs later.'
+  db_label: 'Persisted jobs (DB)'
+  db_hint: 'Rows written to the shared SQLite file.'
+
+card:
+  async_title: 'Async is optional'
+  async_body_async: 'Plain synchronous controllers are perfectly fine. Messenger only earns its keep for long or background work. This build ships the worker, so the button dispatches a real async job.'
+  async_body_sync: 'Plain synchronous controllers are perfectly fine. Messenger only earns its keep for long or background work. This build skips the worker — and the demo above proves the app still works.'
+  sse_title: 'When do I need SSE?'
+  sse_body: 'Only to notify the user when an async task finishes later, without a reload. A synchronous response already carries its result, so it needs no Mercure hub.'
+  data_title: 'Where does my data go?'
+  data_body: 'One SQLite file in app-data, shared by the HTTP server and — when enabled — the worker. The same handler marks the row done, inline or in the worker, and it survives restarts.'
+
+roadmap:
+  tag: 'Coming'
+  title: 'Native bridge'
+  body: 'Keyring-backed secrets, OS notifications and native dialogs, exposed to Symfony and reachable from your frontend. A separate track, layered on this same base.'
+
+logs:
+  title: 'Logs'
+
+status:
+  connecting: 'Connecting to Mercure…'
+  connected: 'Mercure connected'
+  reconnecting: 'Mercure reconnecting…'
+  sync: 'Synchronous build — no SSE stream'
+
+# JS-emitted log lines. %xxx% tokens are filled in client-side.
+log:
+  async_disabled: 'Async disabled on this build; jobs run inline in the request.'
+  dispatching_async: 'HTTP dispatching async job…'
+  dispatching_sync: 'HTTP running synchronous task…'
+  http_accepted: 'HTTP accepted %jobId% (pending — the worker will finish it)'
+  http_done: 'HTTP completed %jobId% synchronously (done)'
+  sse_opening: 'SSE opening %url%'
+  sse_connected: 'SSE connected'
+  sse_issue: 'SSE connection issue, readyState=%state%'
+  sse_done: 'SSE done %jobId% event=%event%'
+  dispatch_failed: 'Dispatch failed: %error%'

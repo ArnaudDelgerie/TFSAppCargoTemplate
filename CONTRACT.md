@@ -30,7 +30,7 @@ interne de chacun.
 |---|---|
 | **Launcher Tauri (Rust)** | Détecter dev/prod, résoudre les chemins, choisir un port libre, générer les secrets d'infra, injecter l'environnement, lancer FrankenPHP (serveur + worker), appliquer les migrations, superviser le worker, attendre `/healthz`, ouvrir la WebView, arrêter proprement les sidecars. |
 | **Application Symfony** | Servir l'app HTTP, exposer `/healthz`, lire toute sa config depuis l'environnement, ne jamais écrire dans ses propres sources, publier les events via le hub Mercure. |
-| **FrankenPHP / Caddy** | Servir Symfony (worker mode), héberger le hub Mercure, écouter uniquement sur `127.0.0.1`. |
+| **FrankenPHP / Caddy** | Servir Symfony (mode classique par défaut ; worker mode en opt-in), héberger le hub Mercure, écouter uniquement sur `127.0.0.1`. |
 
 Le launcher ne connaît pas le métier. L'app Symfony ne connaît pas Tauri (elle ne lit que des
 variables d'environnement). C'est ce découplage qui rend le wrapping reproductible.
@@ -48,7 +48,7 @@ Variables injectées dans **chaque** process FrankenPHP (serveur ET worker).
 | `APP_SECRET` | valeur fixe jetable | **généré + persisté `0600`** | launcher / compose | Symfony (CSRF, signed URIs…) |
 | `APP_PORT` | `8080` (host `${APP_PORT:-8080}`) | port libre dynamique | launcher / compose | Caddyfile |
 | `APP_ORIGIN` | `http://127.0.0.1:8080` | `http://127.0.0.1:<port>` | launcher / compose | Caddyfile (CORS Mercure) |
-| `APP_PUBLIC_DIR` | `/app/public` (implicite) | `<resources>/app/public` | launcher | Caddyfile (`root`, `worker`) |
+| `APP_PUBLIC_DIR` | `/app/public` (implicite) | `<resources>/app/public` | launcher | Caddyfile (`root` ; `worker` si worker mode) |
 | `APP_CACHE_DIR` | défaut Symfony | `<app-data>/cache` | launcher | `Kernel::getCacheDir()` |
 | `APP_BUILD_DIR` | défaut Symfony | `<app-data>/build` | launcher | `Kernel::getBuildDir()` |
 | `APP_LOG_DIR` | défaut Symfony | `<app-data>/log` | launcher | `Kernel::getLogDir()` |

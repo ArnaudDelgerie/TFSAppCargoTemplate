@@ -20,7 +20,13 @@ http://127.0.0.1:{$APP_PORT} {
         cors_origins {$APP_ORIGIN} tauri://localhost
     }
 
-    php_server {
-        worker {$APP_PUBLIC_DIR}/index.php
-    }
+    # Classic mode by default: one Symfony boot per request (php-fpm-like). On a
+    # single-user loopback desktop app the per-request boot is a few ms (opcache
+    # is on) — imperceptible — and it saves ~50 MB resident vs worker mode, with
+    # no worker-state-leak footgun. For a chatty / perf-critical app, opt into
+    # worker mode by replacing the line below with:
+    #     php_server {
+    #         worker {$APP_PUBLIC_DIR}/index.php
+    #     }
+    php_server
 }

@@ -41,6 +41,19 @@ gen_and_check() {
     "$dest/desktop/src-tauri/src/main.rs" \
     || fail "$name: ASYNC_ENABLED != $expect_async"
 
+  # The Compose async override (dev Doctrine transport + worker) is dropped for
+  # sync builds, so dev mode matches the packaged build.
+  if [ "$expect_async" = true ]; then
+    test -f "$dest/compose.override.yaml" || fail "$name: compose.override.yaml expected (async)"
+  else
+    test ! -e "$dest/compose.override.yaml" || fail "$name: compose.override.yaml should be absent (sync)"
+  fi
+
+  # i18n demo ships EN + FR translations whenever the base app is present.
+  if [ "$expect_app" = yes ]; then
+    test -f "$dest/app/translations/messages.fr.yaml" || fail "$name: FR translations missing"
+  fi
+
   # Template-only files must not leak into the generated project. README.md is the
   # template front door (GitHub landing) and must NOT ship — the dev writes their own.
   for leak in Plan cargo-generate.toml CHANGELOG.md README.md; do

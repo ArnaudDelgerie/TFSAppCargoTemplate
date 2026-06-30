@@ -25,10 +25,35 @@ button {
   padding: 56px 0;
 }
 
+.lang {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  padding-top: 8px;
+}
+
+.lang__link {
+  padding: 4px 10px;
+  border-radius: 6px;
+  color: #4c5c55;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.lang__link.is-active {
+  background: #165c4b;
+  color: #ffffff;
+}
+
+.lang__link:not(.is-active):hover {
+  background: #e7eee9;
+}
+
 .hero {
   display: grid;
   gap: 20px;
-  padding: 40px 0 28px;
+  padding: 24px 0 28px;
 }
 
 .eyebrow {
@@ -46,7 +71,52 @@ h1 {
   font-size: clamp(1.25rem, 3.8vw, 2.5rem);
   line-height: 1.1;
   letter-spacing: 0;
-  white-space: nowrap;
+}
+
+.lede {
+  margin: 0;
+  max-width: 62ch;
+  color: #2c3a34;
+  font-size: 1.02rem;
+  line-height: 1.5;
+}
+
+/* Build-flavour banner: green dot for async, amber for sync. */
+.flavor {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.flavor__dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  margin-top: 6px;
+  border-radius: 50%;
+}
+
+.flavor--async {
+  background: #e7f3ee;
+  color: #14503f;
+}
+
+.flavor--async .flavor__dot {
+  background: #1c8a63;
+}
+
+.flavor--sync {
+  background: #fbf1dd;
+  color: #6a4b12;
+}
+
+.flavor--sync .flavor__dot {
+  background: #c98a1e;
 }
 
 .dispatch-button {
@@ -67,17 +137,78 @@ h1 {
   opacity: 0.62;
 }
 
+.try {
+  margin: 28px 0 8px;
+  display: grid;
+  gap: 18px;
+}
+
+.hello-form {
+  display: grid;
+  gap: 8px;
+}
+
+.hello-form__label {
+  font-weight: 700;
+  color: #4c5c55;
+  font-size: 0.92rem;
+}
+
+.hello-form__row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hello-form__input {
+  flex: 1 1 220px;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid #c8d2cb;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+}
+
+.hello-form__input:focus {
+  outline: 2px solid #165c4b;
+  outline-offset: 1px;
+}
+
+.hello-form__error {
+  margin: 0;
+  color: #a3301f;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+/* Personalised greeting returned by the job (sync response or SSE). */
+.greeting {
+  display: block;
+  min-height: 1.5em;
+  padding: 0;
+  color: #14503f;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.greeting--filled {
+  padding: 14px 16px;
+  border-radius: 8px;
+  background: #e7f3ee;
+}
+
 .counters {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
-  margin: 20px 0;
 }
 
 .counter {
-  min-height: 156px;
+  min-height: 176px;
   display: grid;
-  align-content: space-between;
+  grid-template-rows: auto 1fr auto;
+  gap: 8px;
   padding: 20px;
   border: 1px solid #d5ddd6;
   border-radius: 8px;
@@ -90,8 +221,75 @@ h1 {
 }
 
 .counter strong {
-  font-size: 4rem;
+  font-size: 3.4rem;
   line-height: 1;
+}
+
+.counter__hint {
+  color: #6a786f;
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+/* Disabled SSE counter on a sync build: muted, em-dash value. */
+.counter--off {
+  background: #f7f8f5;
+  border-style: dashed;
+}
+
+.counter--off strong {
+  color: #aab4ac;
+}
+
+/* Didactic cards explaining what to use when. */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 28px 0;
+}
+
+.card {
+  padding: 20px;
+  border: 1px solid #d5ddd6;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.card h3 {
+  margin: 0 0 8px;
+  font-size: 1.02rem;
+}
+
+.card p {
+  margin: 0;
+  color: #3a4943;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.card code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #eef1ec;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.85em;
+}
+
+/* Roadmap teaser: bridge capabilities still to come. */
+.card--roadmap {
+  margin: 0 0 28px;
+  border-style: dashed;
+  background: #f4f7f4;
+}
+
+.card__tag {
+  margin: 0 0 6px;
+  color: #8a6d2a;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .log-panel {
@@ -139,7 +337,8 @@ h1 {
     padding: 32px 0;
   }
 
-  .counters {
+  .counters,
+  .cards {
     grid-template-columns: 1fr;
   }
 

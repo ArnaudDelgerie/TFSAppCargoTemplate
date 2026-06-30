@@ -78,7 +78,8 @@ Sans l'app de base, le wrapper attend une app Symfony **conforme au contrat**
   `APP_*`), rien en dur.
 - **`doctrine.yaml` / `mercure.yaml` / `messenger.yaml`** + le `SqlitePragmasMiddleware`
   (`busy_timeout`, `journal_mode=WAL`, `synchronous=NORMAL`).
-- Transport Messenger **partagé entre process** (Doctrine), pas `sync://`.
+- Transport Messenger lu depuis `MESSENGER_TRANSPORT_DSN` : **Doctrine** (partagé entre process) si tu
+  veux de l'async, **`sync://`** si tu assumes un build sans worker (voir `with_async`).
 - Schéma géré par **Doctrine Migrations**, appliqué au lancement.
 - Assets compilés en prod (`public/build/entrypoints.json` présent dans le bundle).
 - Un **Caddyfile desktop** conforme à [CONTRACT.md §7](CONTRACT.md) et `public/` à l'emplacement attendu.

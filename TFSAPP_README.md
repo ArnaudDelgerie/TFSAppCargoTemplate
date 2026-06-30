@@ -100,33 +100,32 @@ Inconvénients :
 > par ton métier, elle ne s'applique plus telle quelle — mais le flux ci-dessous reste la référence
 > du câblage HTTP → async → SSE.
 
-La page d'accueil affiche :
+La page est une **vitrine pédagogique** : un hero, un bloc « Essayer » (bouton + 3 compteurs
+légendés), trois encarts didactiques (« l'async est optionnel », « quand ai-je besoin du SSE ? »,
+« où vont mes données ? ») et un encart roadmap. Elle est **bilingue EN/FR** (toggle en haut à
+droite, via `symfony/translation` + un `LocaleSubscriber` sur `?_locale=`), et son frontend est du
+**JS vanilla** bundlé par webpack — **aucun framework front imposé** (tu branches Stimulus, Turbo,
+React… à ta guise). La page **s'adapte au build** : en async-on elle annonce le worker + SSE, en
+async-off elle bascule en « tâche synchrone » et grise le compteur SSE.
 
-- un bouton `Dispatch async job` ;
-- un compteur de réponses HTTP ;
-- un compteur de réponses SSE ;
-- un compteur `Persisted jobs (DB)` ;
-- une zone de logs.
+Au clic, sur un build **async-on** :
 
-Au clic :
-
-1. Stimulus envoie `POST /api/dispatch`.
+1. Le JS (vanilla) envoie `POST /api/dispatch`.
 2. Symfony crée un `jobId`, **persiste un `DemoJob` (`pending`) en base**, puis dispatch `DemoPingMessage`.
-3. Symfony répond immédiatement en JSON.
-4. Les compteurs HTTP et `Persisted jobs` augmentent (le compteur DB est mis à jour en live, sans reload).
-5. Le worker Messenger consomme le message depuis SQLite.
-6. Le handler **passe le `DemoJob` à `done`** (écriture DB depuis le process worker) et publie un
+3. Symfony répond immédiatement en JSON ; les compteurs HTTP et `Persisted jobs` augmentent (DB live, sans reload).
+4. Le worker Messenger consomme le message depuis SQLite.
+5. Le handler **passe le `DemoJob` à `done`** (écriture DB depuis le process worker) et publie un
    évènement Mercure sur le topic `app://demo`.
-7. L'EventSource du front reçoit l'évènement, le compteur SSE augmente.
-
-Ce flux valide la chaîne complète, y compris la **persistance partagée entre process** :
+6. L'EventSource du front reçoit l'évènement, le compteur SSE augmente.
 
 ```text
 WebView -> Symfony HTTP (persist) -> Messenger async -> worker (update DB) -> Mercure -> SSE -> WebView
 ```
 
-(Le retour SSE n'arrive que si le traitement async est activé — voir
-[Activer / désactiver l'async](#activer--désactiver-lasync).)
+Sur un build **async-off**, le transport est `sync://` : le **même handler** s'exécute **inline dans
+la requête** (le `DemoJob` est marqué `done` avant la réponse), rien n'est enfilé, et il n'y a pas de
+retour SSE. Le bouton et la copy le reflètent. Voir
+[Activer / désactiver l'async](#activer--désactiver-lasync).
 
 ## Structure du repo
 
@@ -226,18 +225,100 @@ génération depuis la réponse `with_async` :
 const ASYNC_ENABLED: bool = true; // ou false
 ```
 
-- `true` : l'app packagée lance et **supervise** le worker Messenger ; les jobs async sont consommés
-  et le retour SSE arrive (c'est ce qu'illustre la démo).
-- `false` : le worker (~60 Mo résident) **n'est pas lancé**. Les messages async sont toujours
-  persistés en base mais jamais consommés, et aucun retour SSE n'arrive. Le bundle Messenger, le
-  handler de démo et le hub Mercure restent installés — ils sont **inertes au repos**, donc sans coût.
+Cette constante pilote deux choses dans l'app packagée : le **spawn du worker** et le **transport
+Messenger injecté**.
 
-Pour basculer après coup : ouvrir `desktop/src-tauri/src/main.rs`, passer `ASYNC_ENABLED` à l'autre
-valeur, puis **rebuilder** (`make tauri-build`). C'est l'unique ligne à changer.
+- `true` : transport `doctrine://…`. L'app lance et **supervise** le worker Messenger ; les jobs sont
+  consommés en arrière-plan et le retour SSE arrive (c'est ce qu'illustre la démo).
+- `false` : transport `sync://`, **pas de worker** (~60 Mo économisés). Les messages dispatchés sont
+  traités **inline dans la requête** par le même handler — **rien n'est enfilé**. Conséquence
+  importante : un build qui repasse plus tard en async **ne trouve aucun backlog** à drainer (pas de
+  risque de spam rétroactif). Le bundle Messenger, le handler et le hub Mercure restent installés,
+  **inertes au repos**.
+
+Pour basculer après coup : passer `ASYNC_ENABLED` à l'autre valeur dans
+`desktop/src-tauri/src/main.rs`, puis **rebuilder** (`make tauri-build`).
+
+> **En dev (compose), c'est un fichier, pas la constante.** Le mode dev respecte le même choix via
+> `compose.override.yaml` (transport `doctrine://` + service `worker`), fusionné automatiquement par
+> `docker compose` par-dessus le `compose.yaml` (base `sync://`, sans worker). Le scaffolder **retire**
+> cet override pour les builds `with_async=false` : `make dev` ne lance alors que `app`. Pour
+> rebasculer le dev à la main, ajoute/retire `compose.override.yaml`.
 
 > Pourquoi une constante et pas une variable d'environnement : l'app desktop est lancée au clic, sans
 > shell ni env exporté — un défaut « en dur » est de toute façon nécessaire. Une const bakée au build
 > est plus simple et sans piège qu'un système d'override runtime.
+
+## Mode FrankenPHP : classique (défaut) vs worker
+
+Par défaut, FrankenPHP sert Symfony en **mode classique** : un boot du kernel par requête (comme
+php-fpm). C'est piloté par le `Caddyfile.desktop` (`php_server` sans directive `worker`).
+
+Pourquoi classique par défaut pour une app desktop :
+
+- **Mono-utilisateur en loopback** : le boot par requête coûte quelques ms (opcache activé) —
+  **imperceptible**. Mesuré sur l'app de base : médiane **2,7 ms** (worker mode) vs **7,6 ms**
+  (classique). Sous ~100 ms, l'utilisateur ne voit aucune différence.
+- **~50 Mo de RAM résidente en moins** sur le process serveur (le worker mode garde le kernel
+  Symfony chaud en mémoire entre les requêtes). Mesuré : **127 Mo PSS** (worker) → **75 Mo PSS**
+  (classique).
+- **Pas de footgun worker-state** : en worker mode, du code non « worker-safe » (statics, singletons)
+  peut fuiter de l'état entre requêtes. En classique, kernel frais à chaque fois → infaillible.
+
+**Activer le worker mode (opt-in)** si ton app est bavarde (beaucoup de requêtes XHR) ou
+perf-critique : dans `build/Caddyfile.desktop`, remplace `php_server` par
+
+```caddyfile
+php_server {
+    worker {$APP_PUBLIC_DIR}/index.php
+}
+```
+
+puis **rebuild** (`make tauri-build`). Tu regagnes ~5 ms de latence par requête contre ~50 Mo de RAM.
+(Le `Caddyfile` dev — `docker/frankenphp/Caddyfile` — porte le même réglage, à aligner si besoin.)
+
+## Empreinte & comportement sous charge
+
+Chiffres mesurés sur l'app de base (mode FrankenPHP classique, défaut), pour donner un ordre de
+grandeur. La RAM est exprimée en **PSS** (Proportional Set Size) : la part de mémoire réellement
+imputable à l'app une fois la mémoire partagée répartie — bien plus honnête que le RSS quand
+plusieurs process partagent le même binaire `frankenphp`.
+
+**Au repos** (app entière : launcher Tauri + WebView WebKit + serveur FrankenPHP) :
+
+| Build         | PSS total | CPU repos | Process |
+|---------------|-----------|-----------|---------|
+| Sync          | ~316 Mo   | 0 %       | 4       |
+| Async         | ~338 Mo   | 0 %       | 5       |
+
+L'async ajoute le worker Messenger. Son surcoût **réel** est d'environ **+22 Mo PSS**, pas +66 :
+le worker partage le binaire `frankenphp` avec le serveur, donc le PSS du serveur baisse d'autant
+quand le worker démarre. Le disque installé est dominé par le binaire `frankenphp` (~163 Mo) ;
+activer ou non l'async n'y change rien.
+
+**Sous charge** (serveur seul, 30 connexions concurrentes, sans temps de réflexion). Le handler
+simule un job de **700 ms** :
+
+| Scénario             | Sync          | Async         |
+|----------------------|---------------|---------------|
+| `GET /` (page)       | ~1000 rps     | ~980 rps      |
+| dispatch d'un job    | **~22 rps**   | **~800 rps**  |
+| dispatch p50         | ~1420 ms      | ~32 ms        |
+| dispatch p99         | ~1460 ms      | ~82 ms        |
+
+Lecture : le même travail de 700 ms **bloque la requête en sync** (le client encaisse le délai et
+tout sérialise) mais **part en arrière-plan en async** — le contrôleur répond en ~9 ms et le résultat
+arrive plus tard via SSE. D'où ~36× plus de dispatch/s en async. Les routes qui ne font pas ce
+travail (`GET /`, validation 422) sont identiques entre les deux : la différence vient purement du
+modèle d'exécution, pas du reste de la stack.
+
+Conclusion pratique : **désactiver l'async allège un peu l'empreinte au repos** (un process en moins,
+~22 Mo) ; **l'activer paie sous charge** dès qu'il y a du travail à sortir de la requête. Pour une app
+desktop mono-utilisateur, le sync suffit souvent — d'où le choix par défaut configurable au
+`cargo generate`.
+
+Les scripts de mesure (`measure.sh` au repos, `loadtest.py` sous charge) ne sont pas embarqués dans
+le template ; ils vivent à côté pour reproduire ces chiffres sur ta propre app.
 
 ## Cycle de vie desktop
 

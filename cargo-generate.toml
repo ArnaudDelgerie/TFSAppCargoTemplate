@@ -30,6 +30,14 @@ with_async   = { type = "bool",   prompt = "Enable async background processing (
 [conditional.'with_app == false']
 ignore = ["app"]
 
+# with_async == false (sync build): drop the Compose override that adds the
+# Doctrine transport + Messenger worker. The sync base (compose.yaml) then runs
+# the handler inline, matching the packaged build (main.rs ASYNC_ENABLED=false).
+# File-level toggle on purpose: no Liquid inside the YAML (keeps it valid for the
+# IDE), same "name the folder/file, not a glob" rule as the app conditional.
+[conditional.'with_async == false']
+ignore = ["compose.override.yaml"]
+
 # Unconditional drop of template-only files from generated projects ('true' is an
 # always-on condition). cargo-generate strips its own cargo-generate.toml already.
 # - README.md is the template's front door (how to scaffold) and stays the GitHub

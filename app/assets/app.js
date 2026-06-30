@@ -1,7 +1,7 @@
 import './styles/app.css';
-import '@hotwired/turbo';
-import { Application } from '@hotwired/stimulus';
-import DemoController from './controllers/demo_controller';
+import { initDemo } from './demo';
 
-window.Stimulus = Application.start();
-window.Stimulus.register('demo', DemoController);
+// Plain webpack-bundled vanilla JS — no frontend framework is imposed by the
+// template. Swap in Stimulus, Turbo, React… on your terms; the demo just needs
+// fetch + EventSource.
+document.addEventListener('DOMContentLoaded', initDemo);

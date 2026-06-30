@@ -16,11 +16,13 @@ use tauri::{path::BaseDirectory, Manager, WebviewUrl, WebviewWindowBuilder, Wind
 const DEV_URL: &str = "http://127.0.0.1:8080";
 
 // Background processing switch, set once at generation time from the "Enable
-// async background processing?" prompt. When false, the Messenger worker
-// (~60 MB resident) is never started in the packaged app: async messages are
-// still persisted in SQLite but never consumed, and the demo's SSE follow-up
-// never arrives. The Messenger bundle, demo handler and Mercure hub stay
-// installed regardless — they are inert at rest. Safe to flip by hand later
+// async background processing?" prompt. It is the single source of truth for
+// two things below: whether the ~60 MB Messenger worker is spawned, and which
+// Messenger transport the server injects. When false, the transport is `sync://`
+// so dispatched messages run inline inside the request (handled by the very same
+// handler) and nothing is ever queued — a later async-enabled build therefore
+// finds no backlog to drain. The Messenger bundle, demo handler and Mercure hub
+// stay installed regardless; they are inert at rest. Safe to flip by hand later
 // (rebuild required); this single constant is the only thing to change.
 const ASYNC_ENABLED: bool = {{ with_async }};
 
@@ -189,7 +191,14 @@ fn start_prod_sidecars(
         ("DATABASE_URL", database_url),
         (
             "MESSENGER_TRANSPORT_DSN",
-            "doctrine://default?queue_name=async".to_string(),
+            if ASYNC_ENABLED {
+                "doctrine://default?queue_name=async"
+            } else {
+                // No worker in this build: a sync transport runs the handler
+                // inline on dispatch, so nothing ever queues in the DB.
+                "sync://"
+            }
+            .to_string(),
         ),
         // On loopback the publish URL and the public (browser) URL are identical.
         ("MERCURE_URL", mercure_url.clone()),
