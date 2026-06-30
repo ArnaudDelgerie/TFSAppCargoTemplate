@@ -11,12 +11,17 @@ include = [
   "desktop/src-tauri/Cargo.toml",
   "app/composer.json",
   ".scaffold.toml",
+  # main.rs only needs the `with_async` bool baked into the ASYNC_ENABLED const.
+  # It currently has NO `{{ }}` / `{% %}` (Rust escaped-brace format strings),
+  # so it is safe through Liquid — keep it that way or generation will break.
+  "desktop/src-tauri/src/main.rs",
 ]
 
 [placeholders]
 product_name = { type = "string", prompt = "Display name (productName, e.g. TFSApp)", regex = "^[A-Za-z0-9]+$" }
 identifier   = { type = "string", prompt = "Reverse-domain identifier (e.g. dev.local.my-app)", regex = "^[a-z0-9.\\-]+$" }
 with_app     = { type = "bool",   prompt = "Include the base Symfony app (demo)?", default = true }
+with_async   = { type = "bool",   prompt = "Enable async background processing (Messenger worker)?", default = true }
 
 # with_app == false (existing project): the app/ folder is not emitted.
 # The dev drops their own contract-compliant app in (README, "Projet existant").
@@ -24,3 +29,17 @@ with_app     = { type = "bool",   prompt = "Include the base Symfony app (demo)?
 # under cargo-generate and would leave app/ in place. Verified by 2-mode smoke test.
 [conditional.'with_app == false']
 ignore = ["app"]
+
+# Unconditional drop of template-only files from generated projects ('true' is an
+# always-on condition). cargo-generate strips its own cargo-generate.toml already.
+# - README.md is the template's front door (how to scaffold) and stays the GitHub
+#   landing page; it is NOT copied into generated projects. The app-facing doc ships
+#   as TFSAPP_README.md (generic <ProductName> prose) for the dev to rename/fold into
+#   their own README — so a generated project has no README.md until they write one.
+# - CHANGELOG.md stays template-side: a generated project compares its
+#   .scaffold.toml `template_version` against the template's CHANGELOG remotely.
+# NB: a rename hook (README.md swap) was avoided on purpose — any [hooks] entry flips
+# cargo-generate into a strict pass that then errors on the legitimate verbatim
+# Twig/binary files. No hook, no problem.
+[conditional.'true']
+ignore = ["Plan", "CHANGELOG.md", "README.md"]

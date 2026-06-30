@@ -2,7 +2,12 @@ COMPOSE=docker compose
 APP_RUN=$(COMPOSE) run --rm app
 NODE_RUN=$(COMPOSE) run --rm node
 
-.PHONY: dev assets-install assets-watch assets-build composer-install db symfony-console tauri-dev build-app tauri-build sidecar
+.PHONY: dev assets-install assets-watch assets-build composer-install db symfony-console tauri-dev build-app tauri-build sidecar smoke
+
+# Template self-test: generate representative variants into a temp dir and
+# cargo-check each (the template repo does not cargo check at its root).
+smoke:
+	build/scripts/smoke.sh
 
 dev:
 	$(COMPOSE) up app worker

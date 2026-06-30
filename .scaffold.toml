@@ -11,3 +11,4 @@ product_name = "{{ product_name }}"
 identifier   = "{{ identifier }}"
 project_name = "{{ project-name }}"
 with_app     = {{ with_app }}
+with_async   = {{ with_async }}

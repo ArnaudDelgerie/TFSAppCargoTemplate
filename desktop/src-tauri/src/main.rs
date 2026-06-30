@@ -15,6 +15,15 @@ use tauri::{path::BaseDirectory, Manager, WebviewUrl, WebviewWindowBuilder, Wind
 
 const DEV_URL: &str = "http://127.0.0.1:8080";
 
+// Background processing switch, set once at generation time from the "Enable
+// async background processing?" prompt. When false, the Messenger worker
+// (~60 MB resident) is never started in the packaged app: async messages are
+// still persisted in SQLite but never consumed, and the demo's SSE follow-up
+// never arrives. The Messenger bundle, demo handler and Mercure hub stay
+// installed regardless — they are inert at rest. Safe to flip by hand later
+// (rebuild required); this single constant is the only thing to change.
+const ASYNC_ENABLED: bool = {{ with_async }};
+
 struct Sidecars {
     server: Option<Child>,
     // The worker is owned by a supervisor thread that respawns it when it exits
@@ -222,35 +231,46 @@ fn start_prod_sidecars(
         "Database migration",
     )?;
 
-    let app_dir = PathBuf::from(app_dir);
-    // Owned copy of the environment so the supervisor thread can respawn the
-    // worker after the original `envs` array goes out of scope.
-    let worker_envs: Vec<(String, String)> = envs
-        .iter()
-        .map(|(key, value)| (key.to_string(), value.clone()))
-        .collect();
-
-    let worker = spawn_worker(&frankenphp, &app_dir, &worker_envs).map_err(|error| {
-        format!(
-            "Cannot start Messenger worker with {}: {error}",
-            frankenphp.display()
-        )
-    })?;
-
     let server_pid = server.id();
-    fs::write(&pid_file, format!("{}\n{}\n", server_pid, worker.id()))?;
-
-    let worker = Arc::new(Mutex::new(Some(worker)));
     let shutting_down = Arc::new(AtomicBool::new(false));
-    spawn_worker_supervisor(
-        Arc::clone(&worker),
-        Arc::clone(&shutting_down),
-        frankenphp,
-        app_dir,
-        worker_envs,
-        pid_file.clone(),
-        server_pid,
-    );
+
+    // Only the worker is gated (see ASYNC_ENABLED): it is the ~60 MB cost. The
+    // Mercure hub is a Caddyfile directive loaded wholesale by the server, not a
+    // process — an idle hub costs ~nothing, so it always stays up.
+    let worker = if ASYNC_ENABLED {
+        let app_dir = PathBuf::from(app_dir);
+        // Owned copy of the environment so the supervisor thread can respawn the
+        // worker after the original `envs` array goes out of scope.
+        let worker_envs: Vec<(String, String)> = envs
+            .iter()
+            .map(|(key, value)| (key.to_string(), value.clone()))
+            .collect();
+
+        let worker = spawn_worker(&frankenphp, &app_dir, &worker_envs).map_err(|error| {
+            format!(
+                "Cannot start Messenger worker with {}: {error}",
+                frankenphp.display()
+            )
+        })?;
+
+        fs::write(&pid_file, format!("{}\n{}\n", server_pid, worker.id()))?;
+
+        let worker = Arc::new(Mutex::new(Some(worker)));
+        spawn_worker_supervisor(
+            Arc::clone(&worker),
+            Arc::clone(&shutting_down),
+            frankenphp,
+            app_dir,
+            worker_envs,
+            pid_file.clone(),
+            server_pid,
+        );
+        worker
+    } else {
+        // Async disabled: no worker, only the server pid is tracked for cleanup.
+        fs::write(&pid_file, format!("{server_pid}\n"))?;
+        Arc::new(Mutex::new(None))
+    };
 
     Ok((
         Sidecars {
