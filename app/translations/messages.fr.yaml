@@ -23,8 +23,8 @@ form:
 error:
   username_required: 'Saisis un nom (1 à 64 caractères).'
 
-# Phrases tirées au hasard par le worker (cf. DemoPingMessage::GREETINGS).
-# %username% est rempli côté serveur, dans la locale du demandeur.
+# Phrases picked randomly by the worker (see DemoPingMessage::GREETINGS).
+# %username% is filled server-side, in the requester's locale.
 greeting:
   welcome: 'Bienvenue à bord, %username% ! Ton job a fait l''aller-retour complet.'
   try_async: '%username%, désactive l''async et regarde le compteur SSE rester muet.'
@@ -64,7 +64,7 @@ status:
   reconnecting: 'Reconnexion à Mercure…'
   sync: 'Build synchrone — pas de flux SSE'
 
-# Lignes de log émises côté JS. Les jetons %xxx% sont remplis côté client.
+# Log lines emitted on the JS side. The %xxx% tokens are filled client-side.
 log:
   async_disabled: 'Async désactivé sur ce build ; les jobs s''exécutent en inline dans la requête.'
   dispatching_async: 'HTTP dispatch du job async…'

@@ -24,7 +24,7 @@ with_app     = { type = "bool",   prompt = "Include the base Symfony app (demo)?
 with_async   = { type = "bool",   prompt = "Enable async background processing (Messenger worker)?", default = true }
 
 # with_app == false (existing project): the app/ folder is not emitted.
-# The dev drops their own contract-compliant app in (README, "Projet existant").
+# The dev drops their own contract-compliant app in (README, "Existing project").
 # NB: the glob must be "app" (the folder), not "app/**" — the latter does not match
 # under cargo-generate and would leave app/ in place. Verified by 2-mode smoke test.
 [conditional.'with_app == false']

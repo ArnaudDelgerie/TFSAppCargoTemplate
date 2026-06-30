@@ -11,6 +11,16 @@ function format(template, replacements) {
   );
 }
 
+function endpoint(path) {
+  const url = new URL(path, window.location.origin);
+  const locale = new URLSearchParams(window.location.search).get('_locale');
+  if (locale) {
+    url.searchParams.set('_locale', locale);
+  }
+
+  return url;
+}
+
 export function initDemo() {
   const root = document.querySelector('[data-demo]');
   if (!root) {
@@ -55,7 +65,7 @@ export function initDemo() {
     try {
       log(asyncEnabled ? i18n.dispatchingAsync : i18n.dispatchingSync);
 
-      const response = await fetch('/api/dispatch', {
+      const response = await fetch(endpoint('/api/dispatch'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -62,7 +62,7 @@ gen_and_check() {
 
   # The app reference doc ships as TFSAPP_README.md (verbatim, generic placeholders).
   test -f "$dest/TFSAPP_README.md" || fail "$name: TFSAPP_README.md missing"
-  grep -q "^## Adapter cette app" "$dest/TFSAPP_README.md" \
+  grep -q "^## Adapting this app" "$dest/TFSAPP_README.md" \
     || fail "$name: TFSAPP_README.md is not the app reference doc"
 
   # Stub the build-time Tauri resources (normally produced by build-app/sidecar)

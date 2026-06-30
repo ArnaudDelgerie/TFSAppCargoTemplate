@@ -1,223 +1,218 @@
-# Contrat Tauri ↔ Symfony — TFS app
+# Tauri ↔ Symfony contract — TFS app
 
-Ce document décrit le **contrat** que doivent respecter un launcher Tauri et une application
-Symfony pour être emballés ensemble selon l'architecture de ce dépôt : la **Tauri FrankenPHP
-Symfony application**, alias **TFS app**.
+This document describes the **contract** a Tauri launcher and a Symfony application must honour to be
+packaged together according to this repository's architecture: the **Tauri FrankenPHP Symfony
+application**, a.k.a. **TFS app**.
 
-L'idée directrice : Tauri n'est qu'un **launcher**. Toute la logique reste dans Symfony. Si ton
-app Symfony respecte ce contrat, elle devient packageable en desktop sans réécriture métier — il
-suffit de poser le shell Tauri autour.
+The guiding idea: Tauri is only a **launcher**. All the logic stays in Symfony. If your Symfony app
+honours this contract, it becomes packageable as a desktop app with no business rewrite — you just
+wrap the Tauri shell around it.
 
-Ce n'est pas un POC jetable : c'est une **base réutilisable** pour des applications desktop locales.
-Le contrat est volontairement minimal et normalisé. Il décrit **ce qui passe entre les deux
-mondes** (variables d'environnement, endpoints HTTP, chemins, cycle de vie), pas l'implémentation
-interne de chacun.
+This is not a throwaway PoC: it is a **reusable base** for local desktop applications. The contract is
+deliberately minimal and standardized. It describes **what passes between the two worlds**
+(environment variables, HTTP endpoints, paths, lifecycle), not the internal implementation of either.
 
-> Source de vérité : ce contrat est extrait du code réel.
-> Launcher : `desktop/src-tauri/src/main.rs`.
-> Dev : `compose.yaml`, `docker/frankenphp/Caddyfile`.
-> Prod : `build/Caddyfile.desktop`, `app/src/Kernel.php`.
+> Source of truth: this contract is extracted from the real code.
+> Launcher: `desktop/src-tauri/src/main.rs`.
+> Dev: `compose.yaml`, `docker/frankenphp/Caddyfile`.
+> Prod: `build/Caddyfile.desktop`, `app/src/Kernel.php`.
 
-> Naming : `productName` = `TFSApp`, `identifier` = `dev.local.tfs-app`, binaire = `tfs-app`. Dans ce
-> document, `<ProductName>` et `<identifier>` désignent ces valeurs, qui pilotent les chemins dérivés
-> (voir §10).
+> Naming: `productName` = `TFSApp`, `identifier` = `dev.local.tfs-app`, binary = `tfs-app`. In this
+> document, `<ProductName>` and `<identifier>` refer to these values, which drive the derived paths
+> (see §10).
 
 ---
 
-## 1. Rôles
+## 1. Roles
 
-| Acteur | Responsabilité |
+| Actor | Responsibility |
 |---|---|
-| **Launcher Tauri (Rust)** | Détecter dev/prod, résoudre les chemins, choisir un port libre, générer les secrets d'infra, injecter l'environnement, lancer FrankenPHP (serveur + worker), appliquer les migrations, superviser le worker, attendre `/healthz`, ouvrir la WebView, arrêter proprement les sidecars. |
-| **Application Symfony** | Servir l'app HTTP, exposer `/healthz`, lire toute sa config depuis l'environnement, ne jamais écrire dans ses propres sources, publier les events via le hub Mercure. |
-| **FrankenPHP / Caddy** | Servir Symfony (mode classique par défaut ; worker mode en opt-in), héberger le hub Mercure, écouter uniquement sur `127.0.0.1`. |
+| **Tauri launcher (Rust)** | Detect dev/prod, resolve paths, pick a free port, generate infra secrets, inject the environment, start FrankenPHP (server + worker), apply migrations, supervise the worker, wait for `/healthz`, open the WebView, shut sidecars down cleanly. |
+| **Symfony application** | Serve the HTTP app, expose `/healthz`, read all its config from the environment, never write into its own sources, publish events through the Mercure hub. |
+| **FrankenPHP / Caddy** | Serve Symfony (classic mode by default; worker mode opt-in), host the Mercure hub, listen on `127.0.0.1` only. |
 
-Le launcher ne connaît pas le métier. L'app Symfony ne connaît pas Tauri (elle ne lit que des
-variables d'environnement). C'est ce découplage qui rend le wrapping reproductible.
+The launcher knows nothing about the business domain. The Symfony app knows nothing about Tauri (it
+only reads environment variables). That decoupling is what makes the wrapping reproducible.
 
 ---
 
-## 2. Contrat d'environnement
+## 2. Environment contract
 
-Variables injectées dans **chaque** process FrankenPHP (serveur ET worker).
+Variables injected into **every** FrankenPHP process (server AND worker).
 
-| Variable | Dev (Docker) | Prod (Tauri) | Produite par | Consommée par |
+| Variable | Dev (Docker) | Prod (Tauri) | Produced by | Consumed by |
 |---|---|---|---|---|
 | `APP_ENV` | `dev` | `prod` | launcher / compose | Symfony |
 | `APP_DEBUG` | `1` | `0` | launcher / compose | Symfony |
-| `APP_SECRET` | valeur fixe jetable | **généré + persisté `0600`** | launcher / compose | Symfony (CSRF, signed URIs…) |
-| `APP_PORT` | `8080` (host `${APP_PORT:-8080}`) | port libre dynamique | launcher / compose | Caddyfile |
-| `APP_ORIGIN` | `http://127.0.0.1:8080` | `http://127.0.0.1:<port>` | launcher / compose | Caddyfile (CORS Mercure) |
-| `APP_PUBLIC_DIR` | `/app/public` (implicite) | `<resources>/app/public` | launcher | Caddyfile (`root` ; `worker` si worker mode) |
-| `APP_CACHE_DIR` | défaut Symfony | `<app-data>/cache` | launcher | `Kernel::getCacheDir()` |
-| `APP_BUILD_DIR` | défaut Symfony | `<app-data>/build` | launcher | `Kernel::getBuildDir()` |
-| `APP_LOG_DIR` | défaut Symfony | `<app-data>/log` | launcher | `Kernel::getLogDir()` |
+| `APP_SECRET` | fixed throwaway value | **generated + persisted `0600`** | launcher / compose | Symfony (CSRF, signed URIs…) |
+| `APP_PORT` | `8080` (host `${APP_PORT:-8080}`) | dynamic free port | launcher / compose | Caddyfile |
+| `APP_ORIGIN` | `http://127.0.0.1:8080` | `http://127.0.0.1:<port>` | launcher / compose | Caddyfile (Mercure CORS) |
+| `APP_PUBLIC_DIR` | `/app/public` (implicit) | `<resources>/app/public` | launcher | Caddyfile (`root`; `worker` if worker mode) |
+| `APP_CACHE_DIR` | Symfony default | `<app-data>/cache` | launcher | `Kernel::getCacheDir()` |
+| `APP_BUILD_DIR` | Symfony default | `<app-data>/build` | launcher | `Kernel::getBuildDir()` |
+| `APP_LOG_DIR` | Symfony default | `<app-data>/log` | launcher | `Kernel::getLogDir()` |
 | `DATABASE_URL` | `sqlite:////app/var/data/app.db` | `sqlite:///<app-data>/data/app.db` | launcher / compose | Doctrine DBAL |
-| `MESSENGER_TRANSPORT_DSN` | `doctrine://default?queue_name=async` | idem | launcher / compose | Messenger |
-| `MERCURE_URL` | `http://127.0.0.1:8080/.well-known/mercure` (serveur) · `http://app:8080/...` (worker) | `http://127.0.0.1:<port>/.well-known/mercure` | launcher / compose | `symfony/mercure-bundle` (publish) |
-| `MERCURE_PUBLIC_URL` | `http://127.0.0.1:<host-port>/.well-known/mercure` | idem `MERCURE_URL` | launcher / compose | bundle (URL publique) |
-| `MERCURE_JWT_SECRET` | valeur fixe jetable ≥ 32 o | **généré éphémère** ≥ 32 o | launcher / compose | bundle (signe) **et** Caddy (valide publisher + subscriber) |
+| `MESSENGER_TRANSPORT_DSN` | `sync://` (base) · `doctrine://default?queue_name=async` via `compose.override.yaml` for async builds | `sync://` or `doctrine://default?queue_name=async` depending on `ASYNC_ENABLED` | launcher / compose | Messenger |
+| `MERCURE_URL` | `http://127.0.0.1:8080/.well-known/mercure` (server) · `http://app:8080/...` (worker) | `http://127.0.0.1:<port>/.well-known/mercure` | launcher / compose | `symfony/mercure-bundle` (publish) |
+| `MERCURE_PUBLIC_URL` | `http://127.0.0.1:<host-port>/.well-known/mercure` | same as `MERCURE_URL` | launcher / compose | bundle (public URL) |
+| `MERCURE_JWT_SECRET` | fixed throwaway value ≥ 32 B | **generated, ephemeral** ≥ 32 B | launcher / compose | bundle (signs) **and** Caddy (validates publisher + subscriber) |
 
-### Deux familles de secrets
+### Two families of secrets
 
-- **Secrets d'infra** (nécessaires au boot, jamais vus par l'utilisateur) → générés par le launcher.
-  - `APP_SECRET` : **persistant**. Lu depuis `<app-data>/data/app.secret`, généré (32 octets, unique
-    par installation) et écrit en `0600` au premier lancement. Il doit rester stable : tout ce que
-    Symfony signe (CSRF, signed URIs, futurs cookies remember-me) doit continuer à valider après un
-    redémarrage.
-  - `MERCURE_JWT_SECRET` : **éphémère**. Régénéré à chaque lancement, jamais persisté. Le hub est
-    interne (loopback, `transport local`, en mémoire), personne d'externe n'a besoin de ce secret.
-- **Secrets utilisateur** (clés API…) → coffre OS (keyring) via un futur bridge natif (hors périmètre de ce contrat).
-  Accès déclenché par une action UI, jamais bloquant au boot.
+- **Infra secrets** (needed to boot, never seen by the user) → generated by the launcher.
+  - `APP_SECRET`: **persistent**. Read from `<app-data>/data/app.secret`, generated (32 bytes, unique
+    per installation) and written `0600` on first launch. It must stay stable: everything Symfony
+    signs (CSRF, signed URIs, future remember-me cookies) must keep validating after a restart.
+  - `MERCURE_JWT_SECRET`: **ephemeral**. Regenerated on every launch, never persisted. The hub is
+    internal (loopback, `transport local`, in memory); nobody external needs this secret.
+- **User secrets** (API keys…) → OS vault (keyring) via a future native bridge (out of scope for this
+  contract). Access is triggered by a UI action, never blocking at boot.
 
-Conséquence : **aucun secret n'est codé en dur dans le paquet**, et **aucun secret n'est à renseigner**
-côté utilisateur pour démarrer.
+Consequence: **no secret is hardcoded into the package**, and **no secret has to be supplied** by the
+user to get started.
 
-### Règles dérivées
+### Derived rules
 
-- **Un seul secret Mercure.** Le bundle signe avec `MERCURE_JWT_SECRET` ; le Caddyfile valide
-  `publisher_jwt` ET `subscriber_jwt` avec la même variable. Inutile d'avoir des clés séparées sur
-  loopback en mode `anonymous`.
-- **Le secret Mercure fait ≥ 256 bits (32 octets).** `symfony/mercure` (via `lcobucci/jwt`) refuse
-  une clé HS256 plus courte : `Key provided is shorter than 256 bits`. Les valeurs générées font
-  64 caractères hex (32 octets), au-dessus du seuil.
-- Le launcher **supprime** `MERCURE_TRANSPORT_URL` de l'environnement hérité avant de lancer
-  FrankenPHP (`env_remove`), car cette variable casse la directive `mercure` selon les runtimes.
+- **A single Mercure secret.** The bundle signs with `MERCURE_JWT_SECRET`; the Caddyfile validates
+  both `publisher_jwt` AND `subscriber_jwt` with the same variable. No need for separate keys on
+  loopback in `anonymous` mode.
+- **The Mercure secret is ≥ 256 bits (32 bytes).** `symfony/mercure` (via `lcobucci/jwt`) rejects a
+  shorter HS256 key: `Key provided is shorter than 256 bits`. The generated values are 64 hex
+  characters (32 bytes), above the threshold.
+- The launcher **removes** `MERCURE_TRANSPORT_URL` from the inherited environment before starting
+  FrankenPHP (`env_remove`), because that variable breaks the `mercure` directive on some runtimes.
 
-### Différence dev/prod à connaître : `MERCURE_URL` du worker
+### Dev/prod difference to know about: the worker's `MERCURE_URL`
 
-Le worker **publie** sur le hub via HTTP. Le hub vit dans le process **serveur**.
+The worker **publishes** to the hub over HTTP. The hub lives in the **server** process.
 
-- En **dev**, serveur et worker sont des conteneurs distincts → le worker vise le serveur par son
-  nom de service : `MERCURE_URL=http://app:8080/.well-known/mercure`.
-- En **prod**, serveur et worker partagent la loopback → le worker vise
+- In **dev**, server and worker are distinct containers → the worker targets the server by its service
+  name: `MERCURE_URL=http://app:8080/.well-known/mercure`.
+- In **prod**, server and worker share the loopback → the worker targets
   `http://127.0.0.1:<port>/.well-known/mercure`.
 
-Invariant : **`MERCURE_URL` du worker pointe toujours vers le hub réellement en écoute.** C'est la
-seule raison pour laquelle `MERCURE_URL` et `MERCURE_PUBLIC_URL` diffèrent en dev (et sont identiques
-en prod).
+Invariant: **the worker's `MERCURE_URL` always points at the hub that is actually listening.** That is
+the only reason `MERCURE_URL` and `MERCURE_PUBLIC_URL` differ in dev (and are identical in prod).
 
-### Worker mode FrankenPHP
+### FrankenPHP worker mode (opt-in)
 
-`symfony/runtime` bascule automatiquement sur `FrankenPhpWorkerRunner` dès que `FRANKENPHP_WORKER`
-est vrai (positionné par FrankenPHP en worker mode). Aucune dépendance supplémentaire.
-
-- **Dev** : `FRANKENPHP_RESET_KERNEL=1` (kernel rebooté à chaque requête → pas d'état périmé pendant
-  le développement).
-- **Prod** : pas de reset (kernel chaud, performances).
+By default FrankenPHP serves Symfony in **classic mode** (`php_server`, one kernel boot per request).
+Worker mode is an opt-in (see §7). When enabled, `symfony/runtime` automatically switches to
+`FrankenPhpWorkerRunner` as soon as `FRANKENPHP_WORKER` is truthy (set by FrankenPHP in worker mode).
+No extra dependency. In that case, set `FRANKENPHP_RESET_KERNEL=1` in dev (kernel rebooted on every
+request → no stale state while developing) and leave it unset in prod (warm kernel, performance).
 
 ---
 
-## 3. Contrat HTTP
+## 3. HTTP contract
 
-L'app Symfony **doit** exposer :
+The Symfony app **must** expose:
 
-| Endpoint | Méthode | Réponse | Rôle |
+| Endpoint | Method | Response | Role |
 |---|---|---|---|
-| `/healthz` | GET | `200` `{"status":"ok"}` | Gate de readiness. Le launcher n'ouvre la WebView qu'après un `200`. |
-| `/.well-known/mercure` | GET/POST | géré par Caddy | Hub Mercure (SSE + publication). |
+| `/healthz` | GET | `200` `{"status":"ok"}` | Readiness gate. The launcher only opens the WebView after a `200`. |
+| `/.well-known/mercure` | GET/POST | handled by Caddy | Mercure hub (SSE + publishing). |
 
-- Le launcher interroge `/healthz` toutes les 250 ms, **timeout 20 s**. Pas de `200` → l'app ne
-  démarre pas. C'est le seul signal de readiness ; ne pas le retirer.
-- Le front s'abonne au hub via `EventSource` sur l'origine courante (`window.location.origin`), pas
-  besoin de connaître le port à l'avance.
+- The launcher polls `/healthz` every 250 ms, **20 s timeout**. No `200` → the app does not start. It
+  is the only readiness signal; do not remove it.
+- The frontend subscribes to the hub via `EventSource` on the current origin
+  (`window.location.origin`), so it does not need to know the port in advance.
 
-### Pas de HTTPS — invariant assumé
+### No HTTPS — an assumed invariant
 
-Tout écoute uniquement sur `127.0.0.1`. Le trafic ne quitte jamais la loopback : il ne touche aucune
-interface réseau, donc TLS ne protégerait contre aucune menace réelle (le seul attaquant pertinent
-est un malware déjà présent sous le compte utilisateur, contre lequel HTTPS ne protège pas).
-`127.0.0.1` est par ailleurs traité comme *secure context* par la WebView même en HTTP.
+Everything listens on `127.0.0.1` only. Traffic never leaves the loopback: it touches no network
+interface, so TLS would protect against no real threat (the only relevant attacker is malware already
+running under the user's account, which HTTPS does not protect against). `127.0.0.1` is also treated as
+a *secure context* by the WebView even over HTTP.
 
-Ce n'est **pas** une dette de POC : c'est le bon choix tant que l'architecture reste loopback. HTTPS
-n'aurait de sens que si l'app sortait de la loopback (réseau partagé, bridge multi-machines) — ce qui
-sort du périmètre de ce contrat.
+This is **not** PoC debt: it is the right call as long as the architecture stays on loopback. HTTPS
+would only make sense if the app left the loopback (shared network, cross-machine bridge) — which is
+out of scope for this contract.
 
 ---
 
-## 4. Contrat de système de fichiers
+## 4. Filesystem contract
 
-Deux zones strictement séparées en prod.
+Two strictly separated zones in prod.
 
-| Zone | Chemin (exemple Linux) | Accès | Contenu |
+| Zone | Path (Linux example) | Access | Content |
 |---|---|---|---|
-| **Ressources embarquées** | `/usr/lib/<ProductName>/resources/app` | **lecture seule** | sources Symfony, vendor, assets compilés |
-| **App-data** | `~/.local/share/<identifier>` | lecture/écriture | DB SQLite, cache, build dir, logs, secret d'app, fichier PID |
+| **Embedded resources** | `/usr/lib/<ProductName>/resources/app` | **read-only** | Symfony sources, vendor, compiled assets |
+| **App-data** | `~/.local/share/<identifier>` | read/write | SQLite DB, cache, build dir, logs, app secret, PID file |
 
-Invariants :
+Invariants:
 
-- **Ne jamais écrire dans les ressources embarquées** à l'exécution (le paquet en est propriétaire).
-- **Les trois répertoires d'écriture Symfony sont relocalisés en app-data** via l'environnement :
-  `APP_CACHE_DIR`, `APP_BUILD_DIR`, `APP_LOG_DIR`. Le `Kernel` surcharge `getCacheDir()`,
-  `getBuildDir()` et `getLogDir()` en conséquence (voir `app/src/Kernel.php`). Oublier le build dir
-  est un piège silencieux : Symfony y écrit (container compilé, pools de cache, proxies ORM) et son
-  défaut pointe **dans le projet** — donc dans les ressources read-only.
-- Le cache et le build dir prod **ne sont pas embarqués** dans le paquet, et le launcher **les vide
-  au démarrage** (un cache Twig ou un container embarqué peut référencer d'anciens hash Encore ou
-  chemins de version précédente).
-- DB SQLite, transport Mercure (si applicable), logs, `app.secret` et PID vivent **uniquement** en
-  app-data.
-- **L'app-data persiste à travers les mises à jour** du paquet (réinstallation `.deb`). Voir §8
-  (migrations) : ne jamais supposer une base vierge sur une nouvelle version.
+- **Never write into the embedded resources** at runtime (the package owns them).
+- **Symfony's three writable directories are relocated to app-data** via the environment:
+  `APP_CACHE_DIR`, `APP_BUILD_DIR`, `APP_LOG_DIR`. The `Kernel` overrides `getCacheDir()`,
+  `getBuildDir()` and `getLogDir()` accordingly (see `app/src/Kernel.php`). Forgetting the build dir is
+  a silent trap: Symfony writes there (compiled container, cache pools, ORM proxies) and its default
+  points **inside the project** — i.e. into the read-only resources.
+- The prod cache and build dir are **not embedded** in the package, and the launcher **wipes them at
+  startup** (a Twig cache or an embedded container may reference old Encore hashes or paths from a
+  previous version).
+- SQLite DB, Mercure transport (if applicable), logs, `app.secret` and PID live **only** in app-data.
+- **App-data persists across package updates** (`.deb` reinstall). See §8 (migrations): never assume a
+  fresh database on a new version.
 
-> Règle mentale fiable : **tout chemin d'écriture Symfony doit dériver d'une variable d'env injectée,
-> jamais d'un défaut relatif au projet** (uploads, sessions fichier, etc. inclus).
+> Reliable mental rule: **every Symfony write path must derive from an injected env variable, never
+> from a project-relative default** (uploads, file sessions, etc. included).
 
 ---
 
-## 5. Séquence de démarrage (prod)
+## 5. Startup sequence (prod)
 
-Ordre imposé par le launcher (`main.rs`) :
+Order enforced by the launcher (`main.rs`):
 
-1. Résoudre `resources/app`, `resources/app/public`, `resources/Caddyfile.desktop`.
-2. Résoudre l'app-data ; définir `pid_file`, `cache_dir`, `build_dir`.
-3. **Cleanup** : tuer les sidecars listés dans l'ancien `sidecars.pids`, puis scanner `/proc` pour
-   tuer d'éventuels sidecars orphelins **de cette app** (crash précédent). L'identification est
-   dérivée des chemins d'install au runtime (Caddyfile résolu pour le serveur ; commande Messenger
-   + répertoire de travail pour le worker), donc sûre même si plusieurs apps issues de cette base
-   tournent en parallèle.
-4. Vider puis recréer `cache_dir` et `build_dir` ; créer `data/` et `log/`.
-5. Générer les secrets d'infra : `MERCURE_JWT_SECRET` (éphémère) et `APP_SECRET` (lu ou créé `0600`).
-6. Valider la présence de `bin/console`, `public/index.php`, `Caddyfile.desktop` (sinon abort).
-7. Résoudre le binaire FrankenPHP (à côté de l'exécutable, sinon `/usr/bin/frankenphp`).
-8. Choisir un **port libre** (`127.0.0.1:0`).
-9. Lancer le **serveur** : `frankenphp run --config <Caddyfile.desktop>`.
-10. **Étapes bloquantes** (avant la WebView, doivent réussir) :
+1. Resolve `resources/app`, `resources/app/public`, `resources/Caddyfile.desktop`.
+2. Resolve app-data; set `pid_file`, `cache_dir`, `build_dir`.
+3. **Cleanup**: kill the sidecars listed in the old `sidecars.pids`, then scan `/proc` to kill any
+   orphan sidecars **of this app** (from a previous crash). Identification is derived from the install
+   paths at runtime (resolved Caddyfile for the server; Messenger command + working directory for the
+   worker), so it is safe even if several apps built from this base run in parallel.
+4. Wipe then recreate `cache_dir` and `build_dir`; create `data/` and `log/`.
+5. Generate infra secrets: `MERCURE_JWT_SECRET` (ephemeral) and `APP_SECRET` (read or created `0600`).
+6. Validate the presence of `bin/console`, `public/index.php`, `Caddyfile.desktop` (abort otherwise).
+7. Resolve the FrankenPHP binary (next to the executable, otherwise `/usr/bin/frankenphp`).
+8. Pick a **free port** (`127.0.0.1:0`).
+9. Start the **server**: `frankenphp run --config <Caddyfile.desktop>`.
+10. **Blocking steps** (before the WebView, must succeed):
     - `messenger:setup-transports`
     - `doctrine:migrations:migrate --allow-no-migration`
-11. Lancer le **worker** : `messenger:consume async --time-limit=3600 --memory-limit=256M --env=prod --no-debug`.
-12. Démarrer le **superviseur** de worker (thread Rust) : il relance le worker à chaque sortie
-    (limite de temps/mémoire ou crash), tant que l'app n'est pas en fermeture.
-13. Écrire les PID (serveur, worker) dans `sidecars.pids` (réécrit à chaque respawn).
-14. Attendre `/healthz == 200`.
-15. Ouvrir la WebView sur `http://127.0.0.1:<port>` (titre = `productName`).
-16. À la fermeture (`CloseRequested`) : signaler l'arrêt au superviseur, tuer worker puis serveur,
-    supprimer `sidecars.pids`.
+11. Start the **worker** (only if async is enabled):
+    `messenger:consume async --time-limit=3600 --memory-limit=256M --env=prod --no-debug`.
+12. Start the worker **supervisor** (Rust thread): it restarts the worker on every exit (time/memory
+    limit or crash), as long as the app is not shutting down.
+13. Write the PIDs (server, worker) into `sidecars.pids` (rewritten on every respawn).
+14. Wait for `/healthz == 200`.
+15. Open the WebView on `http://127.0.0.1:<port>` (title = `productName`).
+16. On close (`CloseRequested`): signal the supervisor to stop, kill worker then server, remove
+    `sidecars.pids`.
 
-En **dev**, le launcher ne lance **aucun** sidecar : il ouvre simplement `http://127.0.0.1:8080`,
-le backend étant fourni par `docker compose up app worker`.
-
----
-
-## 6. Contrat de cycle de vie des process
-
-- **Écoute uniquement sur `127.0.0.1`.** Jamais de bind `0.0.0.0`. Pas de HTTPS (voir §3).
-- **Port dynamique en prod.** Un port fixe peut être squatté par un ancien sidecar → la fenêtre
-  parlerait à un vieux backend / vieux hub. Le port libre garantit qu'on parle au bon serveur.
-- **Un seul worker par queue SQLite.** Plusieurs workers se volent les messages et publient sur des
-  hubs différents. Symptôme : 5 réponses HTTP mais 1–2 SSE.
-- **Le worker est supervisé.** `--time-limit`/`--memory-limit` le font se recycler (sain pour un
-  process PHP long-vécu) ; le superviseur le relance ensuite. Sans ça, le worker s'arrêterait après
-  sa première limite et les jobs async ne seraient plus jamais consommés (panne silencieuse).
-- **Le launcher possède le cycle de vie.** Ne pas supposer que Tauri tue les enfants seul : kill
-  explicite à la fermeture + cleanup au prochain démarrage pour les cas de crash.
-- **PID persistés** dans `sidecars.pids` pour permettre le cleanup après un crash.
+In **dev**, the launcher starts **no** sidecar: it simply opens `http://127.0.0.1:8080`, the backend
+being provided by `docker compose up app worker`.
 
 ---
 
-## 7. Contrat Caddyfile
+## 6. Process lifecycle contract
 
-Le Caddyfile desktop (`build/Caddyfile.desktop`) doit :
+- **Listens on `127.0.0.1` only.** Never binds `0.0.0.0`. No HTTPS (see §3).
+- **Dynamic port in prod.** A fixed port could be squatted by an old sidecar → the window would talk
+  to a stale backend / hub. A free port guarantees we talk to the right server.
+- **A single worker per SQLite queue.** Multiple workers steal each other's messages and publish to
+  different hubs. Symptom: 5 HTTP responses but 1–2 SSE.
+- **The worker is supervised.** `--time-limit`/`--memory-limit` make it recycle (healthy for a
+  long-lived PHP process); the supervisor then restarts it. Without that, the worker would stop after
+  its first limit and async jobs would never be consumed again (silent failure).
+- **The launcher owns the lifecycle.** Do not assume Tauri kills children on its own: explicit kill on
+  close + cleanup on next startup for crash cases.
+- **PIDs persisted** in `sidecars.pids` to allow cleanup after a crash.
+
+---
+
+## 7. Caddyfile contract
+
+The desktop Caddyfile (`build/Caddyfile.desktop`) must:
 
 ```caddy
 {
@@ -236,113 +231,116 @@ http://127.0.0.1:{$APP_PORT} {
         cors_origins {$APP_ORIGIN} tauri://localhost
     }
 
-    php_server {
-        worker {$APP_PUBLIC_DIR}/index.php
-    }
+    # Classic mode by default. Opt into worker mode by replacing the line below
+    # with:  php_server { worker {$APP_PUBLIC_DIR}/index.php }
+    php_server
 }
 ```
 
-Invariants :
+Invariants:
 
-- Écoute sur `{$APP_PORT}` (jamais en dur).
-- `root` et `worker` dérivent de `{$APP_PUBLIC_DIR}`.
-- `publisher_jwt` et `subscriber_jwt` utilisent **la même** variable `{$MERCURE_JWT_SECRET}`.
-- `transport local` : le hub vit dans le process serveur (choix le plus stable cross-runtime).
-  `transport_url` et `transport bolt { ... }` sont rejetés par certains binaires.
-- `cors_origins` inclut `{$APP_ORIGIN}` et `tauri://localhost`.
-- Le Caddyfile **dev** (`docker/frankenphp/Caddyfile`) reste le **témoin** : même structure, port
-  `8080`, `root */app/public`. S'il marche hors Tauri, on garde cette référence stable et on
-  concentre le debug desktop sur ports / env / sidecars.
-
----
-
-## 8. Contrat de migration de schéma
-
-La DB SQLite vit en app-data et **persiste à travers les mises à jour** (l'`identifier` ne change
-pas → même dossier app-data → même base). Conséquence :
-
-> **Tout changement de schéma entre deux versions livrées DOIT être appliqué par une migration
-> exécutée au lancement, en étape bloquante, avant la WebView, de façon idempotente. Ne jamais
-> supposer une base vierge sur une nouvelle version.**
-
-- L'outillage est **Doctrine ORM + Doctrine Migrations**. `doctrine:migrations:migrate` n'applique
-  que les migrations non encore jouées (table `doctrine_migration_versions` en app-data), ce qui
-  réalise le pont v1 → v2 sur une install existante.
-- L'étape tourne dans la séquence de démarrage (§5.10), juste après `messenger:setup-transports`,
-  avec `--allow-no-migration` (succès même si rien à appliquer).
-- En dev, `make db` exécute `setup-transports` puis `migrations:migrate`.
+- Listens on `{$APP_PORT}` (never hardcoded).
+- `root` (and `worker`, in worker mode) derive from `{$APP_PUBLIC_DIR}`.
+- `publisher_jwt` and `subscriber_jwt` use **the same** `{$MERCURE_JWT_SECRET}` variable.
+- `transport local`: the hub lives in the server process (the most cross-runtime-stable choice).
+  `transport_url` and `transport bolt { ... }` are rejected by some binaries.
+- `cors_origins` includes `{$APP_ORIGIN}` and `tauri://localhost`.
+- The **dev** Caddyfile (`docker/frankenphp/Caddyfile`) stays the **witness**: same structure, port
+  `8080`, `root */app/public`. If it works outside Tauri, we keep that stable reference and focus
+  desktop debugging on ports / env / sidecars.
 
 ---
 
-## 9. Contrat stack base de données
+## 8. Schema migration contract
 
-- **Doctrine DBAL + ORM + Migrations** via DoctrineBundle. La connexion `default` et le registre sont
-  fournis par le bundle ; le transport Messenger `doctrine://default` les réutilise.
-- **PRAGMA SQLite** (`busy_timeout=5000`, `journal_mode=WAL`, `synchronous=NORMAL`) appliqués via un
-  **middleware DBAL 4** (`App\Doctrine\SqlitePragmasMiddleware`), les events `postConnect` ayant
-  disparu en DBAL 4. Indispensable car serveur HTTP et worker sont deux process partageant le fichier.
-- **`schema_filter`** (`~^(?!messenger_messages)~`) exclut la table Messenger des diffs de migration :
-  elle reste gérée par `messenger:setup-transports`, pas par l'ORM.
-- Assets compilés en prod et présents dans le bundle (`public/build/entrypoints.json`).
+The SQLite DB lives in app-data and **persists across updates** (the `identifier` does not change →
+same app-data folder → same database). Consequence:
+
+> **Any schema change between two shipped versions MUST be applied by a migration run at launch, as a
+> blocking step, before the WebView, idempotently. Never assume a fresh database on a new version.**
+
+- The tooling is **Doctrine ORM + Doctrine Migrations**. `doctrine:migrations:migrate` only applies
+  migrations not yet run (table `doctrine_migration_versions` in app-data), which bridges v1 → v2 on
+  an existing install.
+- The step runs in the startup sequence (§5.10), right after `messenger:setup-transports`, with
+  `--allow-no-migration` (succeeds even if there is nothing to apply).
+- In dev, `make db` runs `setup-transports` then `migrations:migrate`.
+
+> Practical rule: **never edit a migration that has already shipped — add a new one.** A user's DB
+> already records the old version as applied, so an edit would never re-run; only a new version file
+> bridges the schema forward.
 
 ---
 
-## 10. Personnalisation : dupliquer cette base
+## 9. Database stack contract
 
-Le code Rust est **découplé du nom de l'app** (titre de fenêtre lu depuis la config, chemins de
-cleanup dérivés au runtime, logs génériques). Points à renseigner pour une nouvelle app :
+- **Doctrine DBAL + ORM + Migrations** via DoctrineBundle. The `default` connection and the registry
+  are provided by the bundle; the `doctrine://default` Messenger transport reuses them.
+- **SQLite PRAGMAs** (`busy_timeout=5000`, `journal_mode=WAL`, `synchronous=NORMAL`) applied via a
+  **DBAL 4 middleware** (`App\Doctrine\SqlitePragmasMiddleware`), since `postConnect` events are gone
+  in DBAL 4. Essential because the HTTP server and worker are two processes sharing the file.
+- **`schema_filter`** (`~^(?!messenger_messages)~`) excludes the Messenger table from migration diffs:
+  it stays managed by `messenger:setup-transports`, not by the ORM.
+- Assets compiled for prod and present in the bundle (`public/build/entrypoints.json`).
 
-**Obligatoire — identité :**
+---
 
-- [ ] `desktop/src-tauri/tauri.conf.json` : `productName`, `version`, `identifier`.
-      ⚠️ **Ne jamais changer l'`identifier` après publication** → les utilisateurs perdraient leur
-      app-data (DB, secret).
-- [ ] `desktop/src-tauri/Cargo.toml` : `name` (= nom du binaire), `version` (synchro avec tauri.conf),
+## 10. Customization: duplicating this base
+
+The Rust code is **decoupled from the app name** (window title read from config, cleanup paths derived
+at runtime, generic logs). Things to fill in for a new app:
+
+**Mandatory — identity:**
+
+- [ ] `desktop/src-tauri/tauri.conf.json`: `productName`, `version`, `identifier`.
+      ⚠️ **Never change the `identifier` after release** → users would lose their app-data (DB, secret).
+- [ ] `desktop/src-tauri/Cargo.toml`: `name` (= binary name), `version` (in sync with tauri.conf),
       `description`, `authors`.
 
-**Recommandé — cosmétique :**
+**Recommended — cosmetic:**
 
-- [ ] `app/composer.json` : `name`, `description`.
+- [ ] `app/composer.json`: `name`, `description`.
 
-**Icônes :**
+**Icons:**
 
-- [ ] Remplacer `desktop/src-tauri/icons/icon.png` (**PNG RGBA** obligatoire — Tauri rejette un PNG
-      non-RGBA) et régénérer le jeu complet via `cargo tauri icon <source.png>`.
+- [ ] Replace `desktop/src-tauri/icons/icon.png` (**RGBA PNG** required — Tauri rejects a non-RGBA PNG)
+      and regenerate the full set via `cargo tauri icon <source.png>`.
 
-**Dérivé automatiquement — ne pas éditer à la main :** nom du `.deb`, `/usr/lib/<ProductName>/`,
-app-data `~/.local/share/<identifier>`, binaire, titre de fenêtre.
+**Derived automatically — do not hand-edit:** `.deb` name, `/usr/lib/<ProductName>/`, app-data
+`~/.local/share/<identifier>`, binary, window title.
 
 ---
 
-## 11. Checklist : emballer ta propre app Symfony
+## 11. Checklist: packaging your own Symfony app
 
-Pour rendre une app Symfony existante compatible avec ce launcher :
+To make an existing Symfony app compatible with this launcher:
 
-- [ ] Exposer `GET /healthz` → `200 {"status":"ok"}`.
-- [ ] Lire toute la config depuis l'environnement (`DATABASE_URL`, `MESSENGER_TRANSPORT_DSN`,
-      `MERCURE_*`, `APP_*`). Aucune valeur en dur dépendante de l'install.
-- [ ] Surcharger `Kernel::getCacheDir()` / `getBuildDir()` / `getLogDir()` sur `APP_CACHE_DIR` /
+- [ ] Expose `GET /healthz` → `200 {"status":"ok"}`.
+- [ ] Read all config from the environment (`DATABASE_URL`, `MESSENGER_TRANSPORT_DSN`, `MERCURE_*`,
+      `APP_*`). No install-dependent hardcoded values.
+- [ ] Override `Kernel::getCacheDir()` / `getBuildDir()` / `getLogDir()` to use `APP_CACHE_DIR` /
       `APP_BUILD_DIR` / `APP_LOG_DIR`.
-- [ ] Ne jamais écrire dans les sources à l'exécution (cache, build, logs, DB, uploads → app-data).
-- [ ] Transport Messenger **partagé entre process** (Doctrine), pas `sync://` ni in-memory.
-- [ ] Un seul `MERCURE_JWT_SECRET`, ≥ 32 octets, utilisé par le bundle et par Caddy.
-- [ ] SQLite multi-process via le middleware PRAGMA (`busy_timeout`, `journal_mode=WAL`,
+- [ ] Never write into the sources at runtime (cache, build, logs, DB, uploads → app-data).
+- [ ] Pick a Messenger transport: **Doctrine** (shared across processes) if you want async background
+      processing, or **`sync://`** for a deliberately worker-less build. Never in-memory.
+- [ ] A single `MERCURE_JWT_SECRET`, ≥ 32 bytes, used by both the bundle and Caddy.
+- [ ] Multi-process SQLite via the PRAGMA middleware (`busy_timeout`, `journal_mode=WAL`,
       `synchronous=NORMAL`).
-- [ ] Schéma applicatif géré par Doctrine Migrations, appliqué au lancement (voir §8).
-- [ ] Assets compilés en prod et présents dans le bundle (`public/build/entrypoints.json`).
-- [ ] Fournir un Caddyfile desktop conforme à la section 7.
-- [ ] Garder le mode Docker fonctionnel comme témoin.
+- [ ] Application schema managed by Doctrine Migrations, applied at launch (see §8).
+- [ ] Assets compiled for prod and present in the bundle (`public/build/entrypoints.json`).
+- [ ] Provide a desktop Caddyfile conforming to section 7.
+- [ ] Keep the Docker mode working as a witness.
 
-Si toutes les cases sont cochées, poser le shell Tauri autour est mécanique : copier `desktop/`,
-ajuster l'identité (§10), fournir le sidecar FrankenPHP, builder.
+If every box is ticked, wrapping the Tauri shell around it is mechanical: copy `desktop/`, adjust the
+identity (§10), provide the FrankenPHP sidecar, build.
 
 ---
 
-## 12. Hors contrat (volontairement)
+## 12. Out of contract (deliberately)
 
-Ces points ne font pas partie du contrat minimal et sont laissés à l'app :
+These points are not part of the minimal contract and are left to the app:
 
-- Authentification, chiffrement de la DB locale.
-- Bridge natif Tauri ↔ Symfony (secrets keyring utilisateur, dialogs, notifications).
-- Auto-update, signature de code, notarisation.
-- Packaging Windows (`.msi`) — frontière connue, non couverte aujourd'hui.
+- Authentication, local DB encryption.
+- Native Tauri ↔ Symfony bridge (user keyring secrets, dialogs, notifications).
+- Auto-update, code signing, notarization.
+- Windows packaging (`.msi`) — a known boundary, not covered today.
