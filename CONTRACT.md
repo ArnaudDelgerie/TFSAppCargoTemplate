@@ -18,8 +18,9 @@ deliberately minimal and standardized. It describes **what passes between the tw
 > Prod: `build/Caddyfile.desktop`, `app/src/Kernel.php`.
 
 > Naming: `productName` = `TFSApp`, `identifier` = `dev.local.tfs-app`, binary = `tfs-app`. In this
-> document, `<ProductName>` and `<identifier>` refer to these values, which drive the derived paths
-> (see §10).
+> document, `<ProductName>` and `<identifier>` refer to these values. Runtime data and install paths
+> derive from `<ProductName>`; `<identifier>` remains the stable reverse-domain Tauri identity (see
+> §10).
 
 ---
 
@@ -138,7 +139,7 @@ Two strictly separated zones in prod.
 | Zone | Path (Linux example) | Access | Content |
 |---|---|---|---|
 | **Embedded resources** | `/usr/lib/<ProductName>/resources/app` | **read-only** | Symfony sources, vendor, compiled assets |
-| **App-data** | `~/.local/share/<identifier>` | read/write | SQLite DB, cache, build dir, logs, app secret, PID file |
+| **App-data** | `~/.local/share/<ProductName>` | read/write | SQLite DB, cache, build dir, logs, app secret, PID file |
 
 Invariants:
 
@@ -253,8 +254,8 @@ Invariants:
 
 ## 8. Schema migration contract
 
-The SQLite DB lives in app-data and **persists across updates** (the `identifier` does not change →
-same app-data folder → same database). Consequence:
+The SQLite DB lives in app-data and **persists across updates** (`productName` does not change → same
+app-data folder → same database). Consequence:
 
 > **Any schema change between two shipped versions MUST be applied by a migration run at launch, as a
 > blocking step, before the WebView, idempotently. Never assume a fresh database on a new version.**
@@ -293,7 +294,8 @@ at runtime, generic logs). Things to fill in for a new app:
 **Mandatory — identity:**
 
 - [ ] `desktop/src-tauri/tauri.conf.json`: `productName`, `version`, `identifier`.
-      ⚠️ **Never change the `identifier` after release** → users would lose their app-data (DB, secret).
+      ⚠️ **Never change `productName` after release** → users would lose their app-data (DB, secret).
+      Keep `identifier` stable too; it is the app's reverse-domain technical identity.
 - [ ] `desktop/src-tauri/Cargo.toml`: `name` (= binary name), `version` (in sync with tauri.conf),
       `description`, `authors`.
 
@@ -307,7 +309,7 @@ at runtime, generic logs). Things to fill in for a new app:
       and regenerate the full set via `cargo tauri icon <source.png>`.
 
 **Derived automatically — do not hand-edit:** `.deb` name, `/usr/lib/<ProductName>/`, app-data
-`~/.local/share/<identifier>`, binary, window title.
+`~/.local/share/<ProductName>`, binary, window title.
 
 ---
 

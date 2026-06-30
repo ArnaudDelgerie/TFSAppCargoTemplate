@@ -14,6 +14,9 @@ First release of the `cargo generate` template.
 
 - Parameterizable desktop wrapper (Tauri 2 + FrankenPHP + Symfony): `product_name`, `identifier`,
   crate/binary name derived from `project-name`.
+- Human-readable app-data path derived from `productName` (`~/.local/share/<ProductName>` on Linux),
+  while `identifier` remains the stable reverse-domain Tauri identity.
+- Static, lock-aligned `app/composer.json` so generated projects build without Composer lock warnings.
 - `with_app` toggle (greenfield with base app + demo / brownfield bare wrapper).
 - `with_async` toggle: a single Rust `ASYNC_ENABLED` const gates both the Messenger worker spawn and
   the injected transport — `doctrine://` (worker drains it) vs `sync://` (handler runs inline, nothing

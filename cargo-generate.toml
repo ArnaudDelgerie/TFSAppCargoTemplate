@@ -9,7 +9,6 @@ cargo_generate_version = ">=0.18"
 include = [
   "desktop/src-tauri/tauri.conf.json",
   "desktop/src-tauri/Cargo.toml",
-  "app/composer.json",
   ".scaffold.toml",
   # main.rs only needs the `with_async` bool baked into the ASYNC_ENABLED const.
   # It currently has NO `{{ }}` / `{% %}` (Rust escaped-brace format strings),
@@ -50,4 +49,19 @@ ignore = ["compose.override.yaml"]
 # cargo-generate into a strict pass that then errors on the legitimate verbatim
 # Twig/binary files. No hook, no problem.
 [conditional.'true']
-ignore = ["Plan", "CHANGELOG.md", "README.md"]
+ignore = [
+  "Plan",
+  "CHANGELOG.md",
+  "README.md",
+  "app/vendor",
+  "app/node_modules",
+  "app/public/build",
+  "app/var/cache",
+  "app/var/log",
+  "app/var/data",
+  "desktop/node_modules",
+  "desktop/src-tauri/target",
+  "desktop/src-tauri/resources/app",
+  "desktop/src-tauri/resources/Caddyfile.desktop",
+  "desktop/src-tauri/resources/frankenphp",
+]

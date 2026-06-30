@@ -44,8 +44,8 @@ The generator asks **interactively**:
 
 | Answer | Role |
 |---|---|
-| `product_name` | Tauri `productName` — drives the `.deb` name, `/usr/lib/<ProductName>/`, the window title |
-| `identifier` | reverse-domain — drives app-data `~/.local/share/<identifier>`. ⚠️ immutable after release |
+| `product_name` | Tauri `productName` — drives the `.deb` name, `/usr/lib/<ProductName>/`, app-data `~/.local/share/<ProductName>`, the window title. ⚠️ immutable after release |
+| `identifier` | reverse-domain Tauri identifier — stable technical app identity |
 | `with_app` | include the base Symfony app + demo? (`true` = new project, `false` = existing project) |
 | `with_async` | enable async processing (Messenger worker)? (`true` by default) |
 
@@ -58,7 +58,7 @@ the command line via `-d key=value` for scripting. Everything else — paths, ap
 | **New project** (default) | `cargo generate …` | wrapper + base app + demo → **boots straight away**; then replace the contents of `app/` with your own |
 | **Existing project** | `… -d with_app=false` | bare wrapper (no `app/`) → see [Existing project](#existing-project-with_appfalse) |
 
-Only `tauri.conf.json`, `Cargo.toml`, `composer.json`, `main.rs` (the `ASYNC_ENABLED` const) and
+Only `tauri.conf.json`, `Cargo.toml`, `main.rs` (the `ASYNC_ENABLED` const) and
 `.scaffold.toml` receive substitutions; everything else is copied verbatim (notably the Twig
 templates, whose `{{ }}` syntax is deliberately preserved).
 

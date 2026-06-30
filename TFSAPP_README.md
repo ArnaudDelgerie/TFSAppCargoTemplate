@@ -20,8 +20,8 @@ between the launcher and the app is described in [CONTRACT.md](CONTRACT.md).
 > (`<project-name>`) are defined in `desktop/src-tauri/tauri.conf.json` and
 > `desktop/src-tauri/Cargo.toml`. These values drive the `.deb` name
 > (`<ProductName>_<version>_amd64.deb`), the `/usr/lib/<ProductName>/` path and the app-data
-> `~/.local/share/<identifier>`. Everything else **derives automatically** (the Rust code is decoupled
-> from the name). ⚠️ **Never change the `identifier` after release** → loss of user app-data (see
+> `~/.local/share/<ProductName>`. Everything else **derives automatically** (the Rust code is decoupled
+> from the name). ⚠️ **Never change `productName` after release** → loss of user app-data (see
 > [Adapting this app](#adapting-this-app) and [CONTRACT.md §10](CONTRACT.md)).
 
 ## Stack
@@ -351,7 +351,7 @@ You must not write into this folder at runtime.
 Mutable data is placed in the Tauri application data directory, e.g. on Linux:
 
 ```text
-~/.local/share/<identifier>
+~/.local/share/<ProductName>
 ```
 
 There you find: the SQLite database, the Symfony runtime cache, the Symfony **build dir**, the logs,
@@ -436,7 +436,7 @@ two purposes:
   touching `app/` or the identity**. Until a dedicated script exists: `git diff` between two template
   tags on those paths, applied by hand.
 
-⚠️ **Never** change the `identifier` after release (loss of user app-data — see
+⚠️ **Never** change `productName` after release (loss of user app-data — see
 [CONTRACT.md §10](CONTRACT.md)).
 
 ## Mistakes to avoid
@@ -583,7 +583,8 @@ name** — window title read from config, cleanup paths derived at runtime, gene
 **Identity:**
 
 - `desktop/src-tauri/tauri.conf.json`: `productName`, `version`, `identifier`.
-  ⚠️ **Never change the `identifier` after release** → loss of user app-data.
+  ⚠️ **Never change `productName` after release** → loss of user app-data. Keep `identifier` stable too;
+  it is the app's reverse-domain technical identity.
 - `desktop/src-tauri/Cargo.toml`: `name` (= binary name), `version` (in sync), `description`,
   `authors`.
 
@@ -593,7 +594,7 @@ name** — window title read from config, cleanup paths derived at runtime, gene
 set via `cargo tauri icon <source.png>`.
 
 **Derived automatically (do not edit):** `.deb` name, `/usr/lib/<ProductName>/`, app-data
-`~/.local/share/<identifier>`, binary, window title.
+`~/.local/share/<ProductName>`, binary, window title.
 
 Then: replace the Symfony demo content, add authentication if the app exposes sensitive data, add
 tests, and the packaging targets you need (`appimage`, `dmg`, `msi`…). The full contract is in

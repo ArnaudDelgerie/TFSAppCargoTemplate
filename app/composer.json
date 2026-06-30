@@ -1,6 +1,6 @@
 {
-  "name": "local/{{ project-name }}-symfony-app",
-  "description": "Symfony 8.1 app served by FrankenPHP, packaged with Tauri ({{ product_name }}).",
+  "name": "local/tfsapp-symfony-app",
+  "description": "Symfony 8.1 app served by FrankenPHP and packaged with Tauri.",
   "type": "project",
   "license": "proprietary",
   "minimum-stability": "stable",

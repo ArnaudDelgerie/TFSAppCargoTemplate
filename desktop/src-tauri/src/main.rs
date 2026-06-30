@@ -119,10 +119,7 @@ fn start_prod_sidecars(
         .path()
         .resolve("resources/Caddyfile.desktop", BaseDirectory::Resource)
         .map_err(|error| format!("Cannot resolve bundled Caddyfile.desktop resource: {error}"))?;
-    let data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| format!("Cannot resolve app data directory: {error}"))?;
+    let data_dir = product_data_dir(app)?;
     let pid_file = data_dir.join("sidecars.pids");
     let cache_dir = data_dir.join("cache");
     let build_dir = data_dir.join("build");
@@ -500,6 +497,23 @@ fn load_or_create_app_secret(data_dir: &Path) -> Result<String, Box<dyn std::err
     fs::write(&secret_file, &secret)?;
     restrict_to_owner(&secret_file)?;
     Ok(secret)
+}
+
+fn product_data_dir(app: &tauri::AppHandle) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Cannot resolve app data directory: {error}"))?;
+    let parent = app_data_dir
+        .parent()
+        .ok_or("Cannot resolve parent app data directory")?;
+    let product_name = app
+        .config()
+        .product_name
+        .clone()
+        .ok_or("Cannot resolve productName from tauri.conf.json")?;
+
+    Ok(parent.join(product_name))
 }
 
 /// Restrict a file to owner read/write only (0600). No-op on non-Unix targets.
