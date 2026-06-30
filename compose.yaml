@@ -4,7 +4,15 @@ services:
       context: .
       dockerfile: docker/frankenphp/Dockerfile
     command: frankenphp run --config /etc/caddy/Caddyfile
+    # Run as the host user so files written through the ./app bind mount (var/,
+    # vendor/, public/build) are owned by you, not root. Defaults to 1000:1000;
+    # the Makefile passes your real UID/GID. HOME/COMPOSER_HOME are redirected to
+    # /tmp because the image's $HOME (/root) is not writable as a non-root user
+    # (Caddy data dir, composer cache).
+    user: "${UID:-1000}:${GID:-1000}"
     environment:
+      HOME: /tmp
+      COMPOSER_HOME: /tmp/composer
       APP_ENV: dev
       APP_DEBUG: "1"
       # Fixed, throwaway dev secret. In a packaged build the Tauri launcher
@@ -38,7 +46,10 @@ services:
     command: frankenphp php-cli bin/console messenger:consume async -vvv
     depends_on:
       - app
+    user: "${UID:-1000}:${GID:-1000}"
     environment:
+      HOME: /tmp
+      COMPOSER_HOME: /tmp/composer
       APP_ENV: dev
       APP_DEBUG: "1"
       # Must match the app service: both processes share APP_SECRET.
@@ -59,6 +70,10 @@ services:
       dockerfile: docker/node/Dockerfile
     command: npm run watch
     working_dir: /app
+    # Same host-user mapping; HOME=/tmp so the npm cache ($HOME/.npm) is writable.
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      HOME: /tmp
     volumes:
       - ./app:/app
     profiles:
